@@ -445,20 +445,65 @@ var APP_NAME = '익스퀴즈';
 /* 예전 이름이 기본값으로 저장된 시험은 새 이름으로 옮긴다. */
 var LEGACY_APP_TITLES = ['제품교육 퀴즈대잔치', '제품교육 퀴즈대찬치'];
 var DB_BASE = 'https://quiz-62490-default-rtdb.asia-southeast1.firebasedatabase.app';
+/* 방(초대 코드)별로 시험과 응시 기록을 나눠 둔다. 루트는 잠그고 /rooms/{코드}만 연다. */
 var DB_PATH = {
-  exam: '/quiz/exam',
-  participants: '/quiz/participants',
-  participant: function (id) { return '/quiz/participants/' + id; }
+  room: function (code) { return '/rooms/' + code; },
+  exam: function (code) { return '/rooms/' + code + '/exam'; },
+  participants: function (code) { return '/rooms/' + code + '/participants'; },
+  participant: function (code, id) { return '/rooms/' + code + '/participants/' + id; }
 };
 var KEYS = {
   myId: 'quiz:myId',
   name: 'quiz:myName',
   invite: 'quiz:inviteUrl',
+  room: 'quiz:roomCode',
+  memberRoom: 'quiz:memberRoom',
   tab: 'quiz:hostTab',
   guide: 'quiz:guideOff',
   goal: 'quiz:goalCount',
   draft: 'quiz:draft:'
 };
+
+/* ---------------------------------------------------------- 초대 코드 */
+var ROOM_PREFIX = 'EXQ-';
+var ROOM_MIN = 3, ROOM_MAX = 24;
+var ROOM_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; /* 0/O, 1/I처럼 헷갈리는 글자 제외 */
+var ROOM_CODE_ERROR = '유효하지 않은 초대 코드입니다. 출제자에게 다시 확인해 주세요.';
+var RoomCode = {
+  /* 입력값 정리: 공백 제거 + 대문자 통일 (대소문자는 구분하지 않는다) */
+  normalize: function (raw) {
+    return String(raw == null ? '' : raw).replace(/[\s\u200b\ufeff]+/g, '').toUpperCase();
+  },
+  valid: function (code) {
+    var c = String(code == null ? '' : code);
+    if (c.length < ROOM_MIN || c.length > ROOM_MAX) { return false; }
+    return /^[A-Z0-9][A-Z0-9_-]*$/.test(c);
+  },
+  random: function () {
+    var s = '';
+    for (var i = 0; i < 6; i++) { s += ROOM_ALPHABET.charAt(randInt(0, ROOM_ALPHABET.length - 1)); }
+    return ROOM_PREFIX + s;
+  }
+};
+
+/* 응시용 주소에 초대 코드를 붙인다. (이미 code=가 있으면 값만 바꾼다) */
+function withCode(url, code) {
+  var base = String(url == null ? '' : url).trim();
+  if (!base) { return ''; }
+  var hash = '', hi = base.indexOf('#');
+  if (hi >= 0) { hash = base.slice(hi); base = base.slice(0, hi); }
+  var pair = 'code=' + encodeURIComponent(code);
+  var qi = base.indexOf('?');
+  if (qi >= 0) {
+    var kept = [], parts = base.slice(qi + 1).split('&');
+    for (var i = 0; i < parts.length; i++) {
+      if (parts[i] && parts[i].indexOf('code=') !== 0) { kept.push(parts[i]); }
+    }
+    kept.push(pair);
+    return base.slice(0, qi) + '?' + kept.join('&') + hash;
+  }
+  return base + '?' + pair + hash;
+}
 var TYPE_LABEL = { mcq: '5지선다', ox: 'OX', short: '단답형' };
 var TYPE_TAG = { mcq: 'tag-mcq', ox: 'tag-ox', short: 'tag-short' };
 var STATUS_LABEL = { waiting: '대기 중', running: '진행 중', ended: '종료' };
@@ -1179,6 +1224,8 @@ function clampIdx(i, len) {
 
 var Member = {
   myId: null,
+  roomCode: '',
+  pendingCode: '',
   rec: null,
   screen: 'loading',
   idx: 0,
@@ -1189,56 +1236,149 @@ var Member = {
   lastPut: 0,
   lastSync: 0,
   examSig: '',
+  examStatus: '',
   timerEl: null,
   optRefs: [],
   dotRefs: [],
   booted: false,
   offline: false,
+  checking: false,
+  codeError: '',
+  lastRetry: 0,
 
   /* ---------------------------------------------------------- 시작 */
   init: function () {
-    var self = this;
     FB.watch(paintSync);
-    if (this.subExam) { this.subExam.stop(); this.subExam = null; }
+    this.stopSub();
     var id = LS.get(KEYS.myId);
     if (!id) { id = uid('u'); LS.set(KEYS.myId, id); }
     this.myId = id;
+    this.startTick();
+    /* 주소의 ?code= → 이 기기에서 마지막으로 입장한 코드 순서로 시도한다. */
+    var code = RoomCode.normalize(getParam('code') || LS.get(KEYS.memberRoom) || '');
+    if (!code) { this.toLock(''); return; }
+    this.enterRoom(code);
+  },
 
-    FB.get(DB_PATH.exam, function (err, data) {
-      if (!err) {
-        self.offline = false;
-        if (data && data.questions && data.questions.length) { Exam.load(data); }
-        else { self.screen = 'empty'; }
-      } else {
-        self.offline = true;
-        self.screen = 'offline';
-      }
-      self.loadOwn(function () {
-        self.ready = true;
-        self.examSig = self.sigOfExam();
-        self.subscribeExam();
-        self.decide();
-        self.render();
-        if (!self.booted) {
-          self.booted = true;
-          setInterval(function () { self.tick(); }, 1000);
-        }
-      });
-    });
+  startTick: function () {
+    var self = this;
+    if (this.booted) { return; }
+    this.booted = true;
+    setInterval(function () { self.tick(); }, 1000);
     document.addEventListener('keydown', function (ev) {
       if (ev && (ev.key === 'Escape' || ev.keyCode === 27)) { Modal.close(); }
     });
   },
 
+  stopSub: function () {
+    if (this.subExam) { this.subExam.stop(); this.subExam = null; }
+  },
+
+  /* 코드 없이 들어온 화면 — 시험 제목·문항은 절대 보여주지 않는다. */
+  toLock: function (msg) {
+    this.stopSub();
+    this.roomCode = '';
+    this.pendingCode = '';
+    this.rec = null;
+    this.ready = true;
+    this.checking = false;
+    this.offline = false;
+    this.examSig = '';
+    this.examStatus = '';
+    this.idx = 0;
+    Exam.data = null;
+    this.codeError = msg || '';
+    this.screen = 'lock';
+    this.render();
+  },
+
+  /* 초대 코드 확인 → 방의 시험을 읽고 입장한다. */
+  enterRoom: function (raw, quiet) {
+    var self = this;
+    var code = RoomCode.normalize(raw);
+    if (!RoomCode.valid(code)) { this.toLock(ROOM_CODE_ERROR); return; }
+
+    this.stopSub();
+    this.ready = false;
+    this.offline = false;
+    this.codeError = '';
+    this.roomCode = '';
+    this.pendingCode = code;
+    this.rec = null;
+    this.idx = 0;
+    Exam.data = null;
+    if (!quiet) {
+      this.checking = true;
+      this.screen = 'lock';
+      this.render();
+    }
+
+    FB.get(DB_PATH.exam(code), function (err, data) {
+      self.checking = false;
+      if (err) {
+        self.offline = true;
+        self.ready = true;
+        self.screen = 'offline';
+        self.render();
+        return;
+      }
+      if (!data || typeof data !== 'object') {
+        LS.del(KEYS.memberRoom);
+        self.toLock(ROOM_CODE_ERROR);
+        return;
+      }
+      self.roomCode = code;
+      LS.set(KEYS.memberRoom, code);
+      self.updateUrl(code);
+      Exam.load(data);
+      self.examStatus = Exam.status();
+      self.examSig = self.sigOfExam();
+      self.subscribeExam();
+      self.loadOwn(function () {
+        self.ready = true;
+        self.decide();
+        self.render();
+      });
+    });
+  },
+
+  retry: function () {
+    var code = this.pendingCode || RoomCode.normalize(getParam('code') || LS.get(KEYS.memberRoom) || '');
+    if (code) { this.enterRoom(code); }
+    else { this.toLock(''); }
+  },
+
+  /* 방을 떠나고 새 코드를 받을 수 있게 한다. */
+  resetRoom: function () {
+    this.stopSub();
+    LS.del(KEYS.memberRoom);
+    if (this.rec) { LS.del(this.draftKey()); }
+    this.updateUrl('');
+    this.toLock('');
+  },
+
+  updateUrl: function (code) {
+    try {
+      var loc = window.location || {};
+      var hist = window.history;
+      var href = String(loc.href || '');
+      if (!href || !hist || typeof hist.replaceState !== 'function') { return; }
+      var base = href.split('#')[0].split('?')[0];
+      hist.replaceState(null, '', code ? withCode(base, code) : base);
+    } catch (e) { /* 주소를 못 바꿔도 입장에는 영향이 없다 */ }
+  },
+
+  draftKey: function () { return KEYS.draft + (this.roomCode || 'noroom') + ':' + this.myId; },
+
   loadOwn: function (cb) {
     var self = this;
-    FB.get(DB_PATH.participant(this.myId), function (err, data) {
+    FB.get(DB_PATH.participant(this.roomCode, this.myId), function (err, data) {
       if (err) {
-        var draft = LS.getJSON(KEYS.draft + self.myId);
+        var draft = LS.getJSON(self.draftKey());
         if (draft && draft.id) { self.rec = draft; }
       } else {
         self.rec = (data && data.id) ? data : null;
-        if (self.rec) { LS.setJSON(KEYS.draft + self.myId, self.rec); }
+        if (self.rec) { LS.setJSON(self.draftKey(), self.rec); }
       }
       cb();
     });
@@ -1246,11 +1386,23 @@ var Member = {
 
   subscribeExam: function () {
     var self = this;
-    this.subExam = FB.subscribe(DB_PATH.exam, function (d) { self.onExam(d); });
+    this.stopSub();
+    if (!this.roomCode) { return; }
+    this.subExam = FB.subscribe(DB_PATH.exam(this.roomCode), function (d) { self.onExam(d); });
   },
 
   onExam: function (data) {
-    if (!data || !data.questions || !data.questions.length) {
+    if (!data) {
+      /* 방이 지워졌다 = 출제자가 코드를 바꿨거나 방을 정리했다. */
+      if (this.ready && this.roomCode) {
+        this.stopSub();
+        this.rec = null;
+        this.screen = 'gone';
+        this.render();
+      }
+      return;
+    }
+    if (!(data.questions instanceof Array) || !data.questions.length) {
       if (this.ready) { this.screen = 'empty'; this.render(); }
       return;
     }
@@ -1266,7 +1418,7 @@ var Member = {
     if (this.rec && (Number(this.rec.round) || 1) !== ((Exam.data.round) || 1)) {
       this.rec = null;
       this.idx = 0;
-      LS.del(KEYS.draft + this.myId);
+      LS.del(this.draftKey());
       toast('출제자가 응시를 초기화했습니다. 다시 참여해 주세요.', 'warn');
     }
 
@@ -1358,15 +1510,15 @@ var Member = {
   },
 
   putOwn: function (cb) {
-    if (!this.rec) { return; }
+    if (!this.rec || !this.roomCode) { return; }
     /* 출제자가 대기로 되돌리거나 초기화한 뒤에는 응시 기록을 되살리지 않는다. */
     if (this.rec.status === 'answering' && Exam.status() !== 'running') { return; }
     if ((Number(this.rec.round) || 1) !== ((Exam.data && Exam.data.round) || 1)) { return; }
     var self = this;
     this.rec.lastSeen = now();
     this.rec.maxScore = Exam.totalPoints();
-    LS.setJSON(KEYS.draft + this.myId, this.rec);
-    FB.put(DB_PATH.participant(this.myId), this.rec, function (err) {
+    LS.setJSON(this.draftKey(), this.rec);
+    FB.put(DB_PATH.participant(this.roomCode, this.myId), this.rec, function (err) {
       self.lastPut = now();
       if (err) { self.pendingPut = true; return; }
       self.pendingPut = false;
@@ -1384,18 +1536,18 @@ var Member = {
 
   syncOwn: function (force) {
     var self = this;
-    if (!this.rec) { return; }
+    if (!this.rec || !this.roomCode) { return; }
     if (!force && now() - this.lastPut < 6000) { return; }
     if (!force && now() - this.lastSync < 8000) { return; }
     this.lastSync = now();
-    FB.get(DB_PATH.participant(this.myId), function (err, data) {
+    FB.get(DB_PATH.participant(this.roomCode, this.myId), function (err, data) {
       if (err) { return; }
       var exists = !!(data && data.id);
       if (exists && (Number(data.round) || 1) !== ((Exam.data && Exam.data.round) || 1)) { exists = false; }
       if (!exists) {
         self.rec = null;
         self.idx = 0;
-        LS.del(KEYS.draft + self.myId);
+        LS.del(self.draftKey());
         self.decide();
         self.render();
         toast('출제자가 응시를 초기화했습니다. 다시 참여해 주세요.', 'warn');
@@ -1416,15 +1568,76 @@ var Member = {
   render: function () {
     var root = $('memberRoot');
     if (!root) { return; }
-    if (Exam.data) { paintBrandTitle(Exam.data.title); }
+    if (this.screen !== 'lock' && this.screen !== 'loading' && Exam.data) { paintBrandTitle(Exam.data.title); }
     if (this.screen === 'quiz') { this.renderQuiz(); return; }
     clearNode(root);
     if (this.screen === 'wait') { this.renderWait(); }
     else if (this.screen === 'done') { this.renderDone(); }
     else if (this.screen === 'closed') { this.renderClosed(); }
     else if (this.screen === 'empty') { this.renderEmpty(); }
+    else if (this.screen === 'gone') { this.renderGone(); }
     else if (this.screen === 'offline') { this.renderOffline(); }
+    else if (this.screen === 'lock') { this.renderLock(); }
     else { this.renderJoin(); }
+  },
+
+  /* 초대 코드 입력 화면 — 코드가 맞기 전에는 시험 내용을 한 글자도 보여주지 않는다. */
+  renderLock: function () {
+    var self = this;
+    var root = $('memberRoot');
+    var codeIn = el('input', {
+      cls: 'input', type: 'text', value: this.pendingCode || '',
+
+      attrs: {
+        maxlength: '24', placeholder: '예) EXQ-1A2B3C', 'aria-label': '초대 코드',
+        'data-role': 'room-code-input', autocomplete: 'off', autocapitalize: 'characters', spellcheck: 'false'
+      }
+    });
+    codeIn.addEventListener('keydown', function (ev) {
+      if (ev && (ev.key === 'Enter' || ev.keyCode === 13)) { self.submitCode(codeIn.value); }
+    });
+    var kids = [
+      el('span', { cls: 'm-step', text: '비공개 시험' }),
+      el('h2', { cls: 'm-title', style: { marginTop: '10px' }, text: '초대 코드를 입력해 주세요' }),
+      el('p', { cls: 'm-sub', text: '출제자에게 받은 초대 코드를 입력해야 시험에 입장할 수 있습니다.' }),
+      el('div', { cls: 'join-form' }, [
+        el('div', { cls: 'field' }, [
+          el('span', { cls: 'label', text: '초대 코드' }),
+          codeIn
+        ]),
+        el('div', { style: { marginTop: '12px' } }, [
+          btn(this.checking ? '확인 중…' : '입장하기', 'btn btn-primary btn-lg btn-block',
+            function () { self.submitCode(codeIn.value); },
+            { attrs: { 'data-role': 'room-enter' }, disabled: this.checking })
+        ])
+      ])
+    ];
+    if (this.codeError) {
+      kids.push(el('p', { cls: 'errline', style: { marginTop: '12px' }, text: this.codeError }));
+    }
+    kids.push(el('p', { cls: 'hintline', style: { marginTop: '14px' }, text: '초대 링크로 들어오면 코드를 입력하지 않아도 됩니다. 코드는 대소문자 구분 없이 입력할 수 있습니다.' }));
+    root.appendChild(el('div', { cls: 'm-card' }, [el('div', { cls: 'm-pad' }, kids)]));
+  },
+
+  submitCode: function (raw) {
+    if (this.checking) { return; }
+    var code = RoomCode.normalize(raw);
+    if (!code) { this.toLock('초대 코드를 입력해 주세요.'); return; }
+    this.enterRoom(code);
+  },
+
+  renderGone: function () {
+    var root = $('memberRoot');
+    root.appendChild(el('div', { cls: 'm-card' }, [
+      el('div', { cls: 'm-pad' }, [
+        el('span', { cls: 'm-step', text: '방이 닫혔습니다' }),
+        el('h2', { cls: 'm-title', style: { marginTop: '10px' }, text: '이 초대 코드로는 입장할 수 없습니다' }),
+        el('p', { cls: 'm-sub', text: '출제자가 초대 코드를 바꿨거나 시험 방을 정리했습니다. 새 초대 코드를 받아 다시 입장해 주세요.' }),
+        el('div', { style: { marginTop: '14px' } }, [
+          btn('초대 코드 다시 입력', 'btn btn-primary', function () { Member.resetRoom(); }, { attrs: { 'data-role': 'change-code' } })
+        ])
+      ])
+    ]));
   },
 
   renderJoin: function () {
@@ -1796,7 +2009,10 @@ var Member = {
     root.appendChild(el('div', { cls: 'm-card' }, [
       el('div', { cls: 'm-pad' }, [
         el('h2', { cls: 'm-title', text: '아직 문제가 없습니다' }),
-        el('p', { cls: 'm-sub', text: '출제자가 문항을 준비하고 있습니다. 잠시 후 다시 확인해 주세요.' })
+        el('p', { cls: 'm-sub', text: '출제자가 문항을 준비하고 있습니다. 잠시 후 다시 확인해 주세요.' }),
+        el('div', { style: { marginTop: '14px' } }, [
+          btn('초대 코드 다시 입력', 'btn btn-sm', function () { Member.resetRoom(); }, { attrs: { 'data-role': 'change-code' } })
+        ])
       ])
     ]));
   },
@@ -1808,7 +2024,8 @@ var Member = {
         el('h2', { cls: 'm-title', text: '연결되지 않았습니다' }),
         el('p', { cls: 'm-sub', text: '네트워크 연결을 확인해 주세요. 연결되면 자동으로 다시 불러옵니다.' }),
         el('div', { style: { marginTop: '14px' } }, [
-          btn('다시 시도', 'btn btn-primary', function () { Member.init(); })
+          btn('다시 시도', 'btn btn-primary', function () { Member.retry(); }),
+          btn('초대 코드 다시 입력', 'btn btn-sm', function () { Member.resetRoom(); }, { attrs: { 'data-role': 'change-code' } })
         ])
       ])
     ]));
@@ -1816,6 +2033,11 @@ var Member = {
 
   /* ---------------------------------------------------------- 틱 */
   tick: function () {
+    if (this.screen === 'offline' && this.pendingCode && now() - this.lastRetry > 3000) {
+      this.lastRetry = now();
+      this.enterRoom(this.pendingCode, true);
+      return;
+    }
     if (!this.ready) { return; }
     if (this.screen === 'quiz') {
       this.updateTimer();
@@ -1823,7 +2045,7 @@ var Member = {
       if (rem === 0) { this.submit(true); return; }
     }
     if (this.pendingPut && now() - this.lastPut > 3000) { this.putOwn(); }
-    if (this.rec && (this.screen === 'quiz' || this.screen === 'wait' || this.screen === 'done')) {
+    if (this.rec && this.roomCode && (this.screen === 'quiz' || this.screen === 'wait' || this.screen === 'done')) {
       this.syncOwn(false);
     }
   }
