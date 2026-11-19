@@ -1,0 +1,2841 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#f4f6f9">
+<meta name="color-scheme" content="light">
+<meta name="description" content="익스퀴즈 출제자 콘솔 — 문항 관리, 시험 진행, 실시간 결과 대시보드">
+<title>익스퀴즈 · 출제자</title>
+<style>
+/* ==========================================================================
+   익스퀴즈 — 스타일 (외부 리소스 0)
+   ========================================================================== */
+:root{
+  --bg:#f4f6f9;
+  --bg-grad-1:#eef3ff;
+  --bg-grad-2:#f7f4ff;
+  --card:#ffffff;
+  --ink:#1a2233;
+  --ink-soft:#3d4757;
+  --muted:#78849a;
+  --line:#e8ebf1;
+  --line-soft:#f0f2f7;
+  --accent:#3b6ef6;
+  --accent-dark:#2f59c9;
+  --accent-soft:#eaf0ff;
+  --ok:#0ea36b;
+  --ok-soft:#e6f7ef;
+  --warn:#e08c14;
+  --warn-soft:#fdf3e1;
+  --danger:#e2504a;
+  --danger-soft:#fdecea;
+  --radius:16px;
+  --shadow-sm:0 1px 2px rgba(16,24,40,.05);
+  --shadow:0 1px 2px rgba(16,24,40,.04), 0 10px 28px -12px rgba(16,24,40,.16);
+  --shadow-lift:0 2px 4px rgba(16,24,40,.05), 0 18px 36px -18px rgba(16,24,40,.24);
+}
+
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{
+  background:
+    radial-gradient(1100px 520px at 12% -12%, var(--bg-grad-1) 0%, rgba(238,243,255,0) 62%),
+    radial-gradient(900px 480px at 92% -6%, var(--bg-grad-2) 0%, rgba(247,244,255,0) 58%),
+    var(--bg);
+  background-attachment:fixed;
+  color:var(--ink);
+  font-family:"Pretendard","Pretendard Variable",-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",Roboto,"Helvetica Neue",Arial,sans-serif;
+  -webkit-font-smoothing:antialiased;
+  -moz-osx-font-smoothing:grayscale;
+  font-size:15px;
+  line-height:1.5;
+  min-height:100vh;
+}
+button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit;}
+button{cursor:pointer;}
+a{color:var(--accent-deep,#2f59c9);}
+::placeholder{color:#a3adbf;}
+[hidden]{display:none !important;}
+
+/* ── 공통 ───────────────────────────────────────────── */
+.app{min-height:100vh;display:flex;flex-direction:column;}
+.shell{width:100%;max-width:1080px;margin:0 auto;padding:22px 20px 90px;flex:1 0 auto;}
+.muted{color:var(--muted);}
+.nowrap{white-space:nowrap;}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);}
+
+/* 상단 바 */
+.topbar{
+  position:sticky;top:0;z-index:40;
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+  padding:11px 20px;
+  background:rgba(255,255,255,.88);
+  -webkit-backdrop-filter:saturate(1.4) blur(12px);
+  backdrop-filter:saturate(1.4) blur(12px);
+  border-bottom:1px solid var(--line);
+}
+.brand{display:flex;align-items:center;gap:10px;min-width:0;}
+.brand-mark{
+  width:34px;height:34px;flex:0 0 auto;border-radius:11px;
+  background:linear-gradient(135deg,#3b6ef6 0%,#7a5cf0 100%);
+  color:#fff;display:grid;place-items:center;
+  font-weight:800;font-size:15px;letter-spacing:-.02em;
+  box-shadow:0 7px 16px -8px rgba(59,110,246,.9);
+}
+.brand-text{display:flex;flex-direction:column;min-width:0;line-height:1.25;}
+.brand-text strong{font-size:14.5px;letter-spacing:-.015em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.brand-sub{
+  font-size:12px;color:var(--muted);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:44vw;
+}
+.top-actions{display:flex;align-items:center;gap:8px;flex:0 0 auto;}
+.sync-badge{
+  display:inline-flex;align-items:center;gap:6px;
+  font-size:11.5px;font-weight:650;color:#5b6577;
+  background:#f2f5fa;border:1px solid #e3e8f1;border-radius:999px;padding:5px 10px;
+  white-space:nowrap;
+}
+.sync-badge i{width:6px;height:6px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 3px rgba(14,163,107,.14);}
+.sync-badge.is-live{color:#087a51;background:var(--ok-soft);border-color:#cfeee0;}
+.sync-badge.is-wait{color:#8a6a1e;background:var(--warn-soft);border-color:#f6e3bf;}
+.sync-badge.is-poll{color:#8a6a1e;background:var(--warn-soft);border-color:#f6e3bf;}
+.sync-badge.is-off{color:#b23a34;background:var(--danger-soft);border-color:#f6cfcb;}
+
+/* HOST_ONLY_START */
+/* 페이지 헤드 */
+.page-head{
+  display:flex;align-items:flex-end;justify-content:space-between;gap:16px;
+  margin:6px 0 16px;flex-wrap:wrap;
+}
+.eyebrow{
+  display:inline-flex;align-items:center;gap:7px;
+  font-size:12px;font-weight:650;letter-spacing:.02em;color:var(--muted);margin-bottom:7px;
+}
+.eyebrow .dot{width:6px;height:6px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 3px var(--accent-soft);}
+.page-head h1{
+  margin:0;font-size:25px;line-height:1.25;letter-spacing:-.025em;font-weight:800;
+  overflow-wrap:anywhere;
+}
+.page-head .sub{margin:6px 0 0;font-size:13px;color:var(--muted);}
+.head-right{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+.mini-stat{
+  display:inline-flex;align-items:baseline;gap:3px;
+  font-size:12.5px;color:var(--muted);font-weight:600;
+  background:#fff;border:1px solid var(--line);border-radius:11px;padding:7px 11px;box-shadow:var(--shadow-sm);
+}
+.mini-stat b{font-size:14px;color:var(--ink);font-variant-numeric:tabular-nums;}
+
+/* 탭 */
+.tabs{
+  display:flex;gap:4px;background:#edf1f8;border:1px solid #e3e9f3;
+  padding:4px;border-radius:14px;margin:14px 0 18px;overflow-x:auto;
+  -webkit-overflow-scrolling:touch;
+}
+.tab{
+  flex:1 1 0;min-width:max-content;border:0;background:transparent;color:#5b6577;
+  font-weight:700;font-size:13.5px;padding:10px 12px;border-radius:11px;
+  display:inline-flex;align-items:center;justify-content:center;gap:7px;white-space:nowrap;
+  transition:background .15s,color .15s,box-shadow .15s;
+}
+.tab.is-active{background:#fff;color:var(--ink);box-shadow:var(--shadow-sm);}
+.tab-count{
+  min-width:19px;height:19px;padding:0 5px;border-radius:999px;background:#e4eaf4;color:#5b6577;
+  font-size:11px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;
+}
+.tab.is-active .tab-count{background:var(--accent-soft);color:var(--accent-dark);}
+.tab.is-live .tab-count{background:var(--accent);color:#fff;}
+/* HOST_ONLY_END */
+
+/* 카드 */
+.card{
+  background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+  box-shadow:var(--shadow-sm);margin-bottom:16px;overflow:hidden;
+}
+.card-head{
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+  padding:15px 18px;border-bottom:1px solid var(--line-soft);flex-wrap:wrap;
+}
+.card-head h2{
+  margin:0;font-size:14.5px;font-weight:750;letter-spacing:-.015em;
+  display:flex;align-items:center;gap:8px;
+}
+.card-head .hint{font-size:12px;color:var(--muted);font-weight:600;}
+.card-body{padding:16px 18px;}
+.card-body.tight{padding:0;}
+.card-foot{
+  padding:13px 18px;border-top:1px solid var(--line-soft);background:#fbfcfe;
+  display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;
+}
+.card-note{
+  font-size:12.5px;color:var(--muted);line-height:1.6;
+  background:#f8fafd;border:1px solid #edf1f7;border-radius:11px;padding:11px 12px;
+}
+.card-note b{color:var(--ink-soft);}
+
+/* 버튼 */
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  min-height:40px;padding:0 14px;border-radius:11px;
+  border:1px solid var(--line);background:#fff;color:var(--ink);
+  font-weight:650;font-size:14px;box-shadow:var(--shadow-sm);
+  transition:background .15s,border-color .15s,transform .06s;white-space:nowrap;
+}
+.btn:hover{border-color:#d7deea;background:#fbfcff;}
+.btn:active{transform:translateY(1px);}
+.btn-primary{background:var(--accent);border-color:var(--accent);color:#fff;box-shadow:0 9px 20px -12px rgba(59,110,246,.9);}
+.btn-primary:hover{background:var(--accent-dark);border-color:var(--accent-dark);}
+.btn-soft{background:var(--accent-soft);border-color:#d8e3ff;color:var(--accent-dark);}
+.btn-soft:hover{background:#e0e9ff;border-color:#c8d9ff;}
+.btn-danger{background:#fff8f7;border-color:#f3d3d0;color:#c8413b;}
+.btn-danger:hover{background:var(--danger-soft);border-color:#efb8b3;}
+.btn-ok{background:var(--ok);border-color:var(--ok);color:#fff;box-shadow:0 9px 20px -12px rgba(14,163,107,.9);}
+.btn-ok:hover{background:#0b8b5b;border-color:#0b8b5b;}
+.btn-ghost{background:transparent;border-color:transparent;box-shadow:none;color:#5b6577;}
+.btn-ghost:hover{background:#f1f4f9;}
+.btn-sm{min-height:32px;padding:0 10px;font-size:12.5px;border-radius:9px;}
+.btn-lg{min-height:50px;font-size:15.5px;border-radius:13px;font-weight:700;}
+.btn-block{width:100%;}
+.btn-icon{width:32px;min-height:32px;padding:0;font-size:14px;}
+.btn[disabled]{opacity:.45;pointer-events:none;box-shadow:none;}
+
+/* 폼 */
+.field{display:flex;flex-direction:column;gap:6px;min-width:0;}
+.label{font-size:12.5px;font-weight:650;color:#5b6577;}
+.input,.textarea,.select{
+  width:100%;min-height:42px;border:1px solid var(--line);border-radius:11px;
+  padding:10px 12px;background:#fff;color:var(--ink);outline:none;
+  transition:border-color .15s,box-shadow .15s;
+}
+.input:focus,.textarea:focus,.select:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft);}
+.textarea{min-height:78px;resize:vertical;line-height:1.6;}
+.input[readonly]{background:#f8fafd;color:#4b5666;font-size:13px;}
+.row{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-start;}
+.row > *{flex:1 1 160px;min-width:0;}
+.row.tight{gap:8px;}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.hintline{font-size:12px;color:var(--muted);line-height:1.55;}
+.errline{font-size:12.5px;color:var(--danger);font-weight:650;}
+.saveline{font-size:11.5px;color:var(--ok);font-weight:700;opacity:0;transition:opacity .3s;margin-left:8px;}
+.saveline.on{opacity:1;}
+
+/* 문항 진행 표시 (출제자·팀원 공통) */
+.psub{display:block;font-size:11px;color:var(--muted);margin-top:4px;font-variant-numeric:tabular-nums;white-space:nowrap;}
+
+/* pill / tag */
+.pill{
+  display:inline-flex;align-items:center;gap:6px;border-radius:999px;
+  padding:6px 12px;font-size:12.5px;font-weight:700;border:1px solid transparent;white-space:nowrap;
+}
+.pill .dotp{width:6px;height:6px;border-radius:50%;background:currentColor;}
+.pill.is-waiting{background:#f1f4f9;color:#5b6577;border-color:#e3e8f1;}
+.pill.is-running{background:var(--accent-soft);color:var(--accent-dark);border-color:#d6e2ff;}
+.pill.is-running .dotp{animation:pulse 1.5s infinite;}
+.pill.is-ended{background:#eef0f4;color:#3d4757;border-color:#e0e4ec;}
+@keyframes pulse{
+  0%{box-shadow:0 0 0 0 rgba(59,110,246,.5);}
+  70%{box-shadow:0 0 0 6px rgba(59,110,246,0);}
+  100%{box-shadow:0 0 0 0 rgba(59,110,246,0);}
+}
+.tag{
+  display:inline-flex;align-items:center;gap:4px;border-radius:7px;
+  padding:2px 7px;font-size:11px;font-weight:700;line-height:1.6;
+  background:#f1f4f9;color:#5b6577;border:1px solid #e6ebf3;white-space:nowrap;
+}
+.tag-mcq{background:#eef3ff;color:#2f59c9;border-color:#dbe6ff;}
+.tag-ox{background:#f6efff;color:#6b3ec9;border-color:#e9dcff;}
+.tag-short{background:#e9f8f1;color:#087a51;border-color:#cfeee0;}
+.tag-pts{background:#fff6e6;color:#9a6100;border-color:#f8e6c4;}
+.tag-virtual{background:#f4f1ff;color:#5b3ec9;border-color:#e5defc;}
+.tag-test{background:#eef7ff;color:#1d6fa5;border-color:#d7ebfa;}
+
+/* HOST_ONLY_START */
+/* ── 문제 관리 ──────────────────────────────────────── */
+.qlist{display:flex;flex-direction:column;}
+.qitem{display:flex;gap:12px;padding:14px 18px;border-top:1px solid var(--line-soft);}
+.qitem:first-child{border-top:0;}
+.qnum{
+  width:26px;height:26px;flex:0 0 auto;border-radius:8px;background:#f1f4f9;color:#5b6577;
+  font-size:12.5px;font-weight:800;display:grid;place-items:center;margin-top:1px;
+  font-variant-numeric:tabular-nums;
+}
+.qmain{flex:1;min-width:0;}
+.qtext{font-size:14.5px;font-weight:650;line-height:1.5;overflow-wrap:anywhere;}
+.qmeta{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:7px;font-size:12px;color:var(--muted);}
+.qans{color:#087a51;font-weight:700;}
+.qacts{display:flex;gap:4px;flex:0 0 auto;align-items:flex-start;}
+@media (max-width:640px){
+  .qitem{flex-wrap:wrap;}
+  .qacts{width:100%;justify-content:flex-end;}
+}
+
+/* 문항 편집기 */
+.typechips{display:flex;gap:6px;flex-wrap:wrap;}
+.tchip{
+  min-height:36px;padding:0 13px;border-radius:10px;border:1px solid var(--line);
+  background:#fff;font-size:13px;font-weight:650;color:#5b6577;
+}
+.tchip.is-on{background:var(--accent-soft);border-color:#c9d9ff;color:var(--accent-dark);}
+.choice-row{display:flex;align-items:center;gap:8px;margin-top:8px;}
+.choice-key{
+  width:24px;height:24px;flex:0 0 auto;border-radius:7px;background:#f1f4f9;color:#5b6577;
+  font-size:12px;font-weight:800;display:grid;place-items:center;
+}
+.choice-row .input{flex:1;min-width:0;}
+.pick{
+  min-width:56px;min-height:36px;padding:0 9px;border-radius:9px;border:1px solid var(--line);
+  background:#fff;font-size:12px;font-weight:700;color:#5b6577;flex:0 0 auto;
+}
+.pick.is-on{background:var(--ok-soft);border-color:#bfe9d7;color:#087a51;}
+.oxpick{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.oxpick-btn{
+  min-height:64px;border-radius:13px;border:1.5px solid var(--line);background:#fff;
+  font-size:24px;font-weight:800;display:flex;align-items:center;justify-content:center;gap:8px;
+}
+.oxpick-btn small{font-size:12px;font-weight:650;color:var(--muted);}
+.oxpick-btn.is-on{border-color:var(--accent);background:var(--accent-soft);color:var(--accent-dark);}
+.switch{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--ink-soft);font-weight:600;margin-top:9px;}
+.switch input{width:18px;height:18px;accent-color:var(--accent);margin:0;}
+.editor-section{border-top:1px dashed #e6ebf4;margin-top:14px;padding-top:14px;}
+.editor-section:first-child{border-top:0;margin-top:0;padding-top:0;}
+.editor-label{font-size:12.5px;font-weight:700;color:#5b6577;margin-bottom:6px;display:block;}
+/* HOST_ONLY_END */
+
+/* HOST_ONLY_START */
+/* ── 시험 진행 ──────────────────────────────────────── */
+.seg{display:flex;gap:6px;flex-wrap:wrap;}
+.seg .btn{flex:1 1 0;min-width:96px;}
+.status-line{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px;}
+.invite-box{display:flex;gap:8px;align-items:center;}
+.invite-box .input{flex:1;min-width:0;}
+.run-note{font-size:12.5px;color:var(--muted);margin-top:10px;line-height:1.6;}
+.fb-status{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px;}
+.fb-status .tag{font-size:11.5px;}
+.sim-state{
+  font-size:12.5px;font-weight:650;color:var(--accent-dark);
+  background:var(--accent-soft);border:1px solid #d9e3ff;border-radius:10px;
+  padding:9px 12px;margin-top:10px;
+}
+/* HOST_ONLY_END */
+
+/* HOST_ONLY_START */
+/* ── 대시보드 ───────────────────────────────────────── */
+.dash-tools{
+  display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:space-between;
+  margin-bottom:12px;
+}
+.dash-tools .left{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.live-dot{
+  display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:#087a51;
+  background:var(--ok-soft);border:1px solid #cfeee0;border-radius:999px;padding:5px 10px;
+}
+.live-dot i{width:6px;height:6px;border-radius:50%;background:var(--ok);animation:pulse 1.5s infinite;color:var(--ok);}
+.kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:16px;}
+.kpi{
+  background:#fff;border:1px solid var(--line);border-radius:14px;padding:13px 14px;
+  box-shadow:var(--shadow-sm);min-width:0;
+}
+.kpi-label{font-size:12px;color:var(--muted);font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.kpi-value{font-size:23px;font-weight:800;letter-spacing:-.025em;margin-top:3px;line-height:1.15;font-variant-numeric:tabular-nums;}
+.kpi-value small{font-size:11.5px;font-weight:650;color:var(--muted);margin-left:3px;letter-spacing:0;}
+.kpi-sub{font-size:11px;color:var(--muted);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.kpi.is-accent{background:linear-gradient(180deg,#f5f8ff 0%,#fff 100%);border-color:#dfe7fb;}
+@media (max-width:900px){.kpis{grid-template-columns:repeat(3,1fr);}}
+@media (max-width:560px){.kpis{grid-template-columns:repeat(2,1fr);}.kpi-value{font-size:21px;}}
+
+.ptable{width:100%;}
+.phead,.prow{
+  display:grid;grid-template-columns:1.25fr 1.25fr .85fr .7fr .75fr .8fr .5fr;
+  gap:10px;align-items:center;padding:11px 18px;
+}
+.phead{
+  font-size:11px;font-weight:750;color:var(--muted);background:#fafbfd;
+  border-bottom:1px solid var(--line-soft);letter-spacing:.01em;
+}
+.prow{border-top:1px solid var(--line-soft);font-size:13.5px;}
+.prow:first-child{border-top:0;}
+.pcell{min-width:0;}
+.plabel{display:none;font-size:10.5px;color:var(--muted);font-weight:700;}
+.pname{display:flex;align-items:center;gap:6px;min-width:0;font-weight:750;}
+.pname .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.pbar-track{height:6px;border-radius:999px;background:#eef1f6;overflow:hidden;}
+.pbar-fill{height:100%;border-radius:999px;background:linear-gradient(90deg,#3b6ef6,#7a5cf0);transition:width .3s;}
+.psub{display:block;font-size:11px;color:var(--muted);margin-top:4px;font-variant-numeric:tabular-nums;white-space:nowrap;}
+.pval{font-variant-numeric:tabular-nums;font-weight:650;}
+.pval.big{font-size:14.5px;font-weight:800;}
+.pval .unit{font-size:11px;color:var(--muted);font-weight:600;}
+.st{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:750;border-radius:999px;padding:4px 9px;white-space:nowrap;}
+.st i{width:5px;height:5px;border-radius:50%;background:currentColor;}
+.st-wait{background:#f1f4f9;color:#5b6577;}
+.st-live{background:var(--accent-soft);color:var(--accent-dark);}
+.st-done{background:var(--ok-soft);color:#087a51;}
+.pacts{justify-self:end;}
+@media (max-width:820px){
+  .phead{display:none;}
+  .prow{display:flex;flex-wrap:wrap;gap:10px 16px;padding:14px 16px;}
+  .pcell{flex:1 1 88px;}
+  .pcell.pname{flex:1 1 100%;}
+  .pcell.pacts{flex:0 0 auto;margin-left:auto;align-self:center;}
+  .plabel{display:block;}
+  .psub{white-space:normal;}
+}
+
+.qbars{display:flex;flex-direction:column;}
+.qbar{padding:12px 0;border-top:1px solid var(--line-soft);}
+.qbar:first-child{border-top:0;padding-top:2px;}
+.qbar-top{display:flex;align-items:center;gap:9px;font-size:13.5px;}
+.qbar-idx{
+  width:22px;height:22px;flex:0 0 auto;border-radius:7px;background:#f1f4f9;color:#5b6577;
+  font-size:11.5px;font-weight:800;display:grid;place-items:center;
+}
+.qbar-txt{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600;}
+.qbar-pct{font-weight:800;font-variant-numeric:tabular-nums;font-size:13.5px;}
+.qbar-track{height:8px;border-radius:999px;background:#eef1f6;margin:7px 0 5px;overflow:hidden;}
+.qbar-fill{height:100%;border-radius:999px;background:linear-gradient(90deg,#0ea36b,#4ecf9f);transition:width .35s;}
+.qbar-fill.is-low{background:linear-gradient(90deg,#e2504a,#f0897f);}
+.qbar-fill.is-mid{background:linear-gradient(90deg,#e08c14,#f0b95c);}
+.qbar-sub{font-size:11.5px;color:var(--muted);font-variant-numeric:tabular-nums;}
+
+/* 첫 화면 안내 */
+.guide-step{display:flex;gap:10px;align-items:flex-start;font-size:13px;color:#3d4757;line-height:1.6;}
+.guide-step + .guide-step{margin-top:8px;}
+.guide-step b{
+  flex:0 0 auto;width:20px;height:20px;border-radius:50%;background:var(--accent-soft);
+  color:var(--accent-dark);font-size:11px;font-weight:800;display:grid;place-items:center;margin-top:1px;
+}
+.guide-step span{flex:1;min-width:0;overflow-wrap:anywhere;}
+.qbars-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px;flex-wrap:wrap;}
+.qbars-head .hint{font-size:12px;color:var(--muted);}
+
+.empty{padding:34px 20px;text-align:center;color:var(--muted);}
+.empty b{display:block;color:var(--ink);font-size:14.5px;margin-bottom:5px;}
+.empty p{margin:0;font-size:13px;line-height:1.6;}
+.empty-acts{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:14px;}
+
+/* ── 실시간 제출 현황 ───────────────────────────────── */
+.sub-status{display:flex;align-items:baseline;justify-content:space-between;gap:10px;flex-wrap:wrap;}
+.sub-count{font-size:13.5px;font-weight:700;color:#5b6577;font-variant-numeric:tabular-nums;}
+.sub-count b{font-size:20px;font-weight:850;letter-spacing:-.03em;color:var(--accent-dark);margin:0 1px;}
+.sub-goal{font-size:12px;font-weight:650;color:var(--muted);font-variant-numeric:tabular-nums;}
+.sub-track{height:10px;border-radius:999px;background:#eef1f6;overflow:hidden;margin-top:11px;}
+.sub-fill{height:100%;border-radius:999px;background:linear-gradient(90deg,#3b6ef6,#7a5cf0);transition:width .3s;}
+.sub-fill.is-done{background:linear-gradient(90deg,#0ea36b,#4ecf9f);}
+.sub-meta{display:flex;gap:12px;flex-wrap:wrap;margin-top:8px;font-size:11.5px;color:var(--muted);font-variant-numeric:tabular-nums;}
+.schips{display:flex;gap:6px;flex-wrap:wrap;margin-top:12px;}
+.schip{
+  display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:4px 5px 4px 11px;
+  font-size:11.5px;font-weight:700;background:#f1f4f9;color:#5b6577;border:1px solid #e6ebf3;
+}
+.schip .nm{max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.schip .st{padding:3px 7px;font-size:10.5px;}
+.schip.is-done{background:var(--ok-soft);border-color:#cfeee0;color:#087a51;}
+.schip.is-live{background:var(--accent-soft);border-color:#d8e3ff;color:var(--accent-dark);}
+.schip.is-wait{background:#f1f4f9;border-color:#e6ebf3;color:#5b6577;}
+.schip-empty{font-size:12px;color:var(--muted);line-height:1.55;}
+.goal-row{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-top:14px;font-size:12.5px;color:#5b6577;font-weight:650;}
+.goal-row .input{width:84px;min-height:34px;padding:6px 8px;text-align:center;font-weight:750;font-variant-numeric:tabular-nums;}
+.goal-row .hint{font-size:11.5px;color:var(--muted);font-weight:600;}
+.all-done{
+  display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+  margin-top:14px;padding:12px 14px;border-radius:12px;
+  background:var(--ok-soft);border:1px solid #bfe9d7;
+}
+.all-done > div{flex:1 1 180px;min-width:0;}
+.all-done b{font-size:14px;font-weight:850;color:#087a51;letter-spacing:-.015em;}
+.all-done .hintline{margin:0;font-size:11.5px;}
+.all-done .btn{flex:0 0 auto;margin-left:auto;}
+@media (max-width:520px){.all-done .btn{width:100%;margin-left:0;}}
+.all-badge{
+  display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:750;color:#087a51;
+  background:var(--ok-soft);border:1px solid #bfe9d7;border-radius:999px;padding:5px 10px;white-space:nowrap;
+}
+/* HOST_ONLY_END */
+
+/* ── 모달 / 토스트 ──────────────────────────────────── */
+.modal-back{
+  position:fixed;inset:0;z-index:90;background:rgba(16,24,40,.44);
+  -webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px);
+  display:flex;align-items:center;justify-content:center;padding:20px;
+  animation:fade .15s;
+}
+.modal{
+  width:100%;max-width:560px;max-height:88vh;display:flex;flex-direction:column;
+  background:#fff;border-radius:18px;box-shadow:0 30px 70px -22px rgba(16,24,40,.55);
+  overflow:hidden;animation:pop .18s;
+}
+.modal.is-wide{max-width:700px;}
+.modal-head{
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+  padding:15px 18px;border-bottom:1px solid var(--line-soft);flex:0 0 auto;
+}
+.modal-head h3{margin:0;font-size:15.5px;font-weight:750;letter-spacing:-.015em;overflow-wrap:anywhere;}
+.modal-body{padding:18px;overflow-y:auto;flex:1 1 auto;-webkit-overflow-scrolling:touch;}
+.modal-foot{
+  display:flex;gap:8px;justify-content:flex-end;padding:13px 18px;
+  border-top:1px solid var(--line-soft);background:#fbfcfe;flex-wrap:wrap;flex:0 0 auto;
+}
+.modal-foot .errline{margin-right:auto;align-self:center;}
+@media (max-width:640px){
+  .modal-back{align-items:flex-end;padding:0;}
+  .modal{max-width:none;border-radius:20px 20px 0 0;max-height:92vh;}
+  .modal-foot{padding-bottom:calc(13px + env(safe-area-inset-bottom));}
+}
+@keyframes fade{from{opacity:0;}to{opacity:1;}}
+@keyframes pop{from{opacity:0;transform:translateY(4px) scale(.985);}to{opacity:1;transform:none;}}
+
+.toasts{
+  position:fixed;left:0;right:0;bottom:calc(18px + env(safe-area-inset-bottom));z-index:130;
+  display:flex;flex-direction:column;align-items:center;gap:8px;padding:0 16px;pointer-events:none;
+}
+.toast{
+  max-width:430px;text-align:center;background:#1f2733;color:#fff;
+  font-size:13.5px;font-weight:600;padding:11px 16px;border-radius:12px;
+  box-shadow:0 14px 32px -14px rgba(16,24,40,.7);animation:rise .2s;
+  transition:opacity .25s,transform .25s;word-break:keep-all;
+}
+.toast.is-out{opacity:0;transform:translateY(6px);}
+.toast-ok{background:#0d7a55;}
+.toast-warn{background:#8f5606;}
+.toast-err{background:#b23a34;}
+@keyframes rise{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+
+/* ── 응시 화면 ──────────────────────────────────────── */
+.member{max-width:660px;margin:0 auto;}
+.m-card{
+  background:#fff;border:1px solid var(--line);border-radius:var(--radius);
+  box-shadow:var(--shadow);margin-bottom:14px;overflow:hidden;
+}
+.m-pad{padding:20px;}
+@media (max-width:520px){.m-pad{padding:16px;}}
+.m-title{margin:0 0 6px;font-size:21px;font-weight:800;letter-spacing:-.025em;line-height:1.3;overflow-wrap:anywhere;}
+.m-sub{margin:0;font-size:13px;color:var(--muted);line-height:1.6;}
+.m-meta{display:flex;gap:6px;flex-wrap:wrap;margin-top:14px;}
+.m-step{
+  font-size:11.5px;font-weight:750;color:var(--accent-dark);background:var(--accent-soft);
+  border:1px solid #d9e3ff;border-radius:999px;padding:4px 9px;display:inline-flex;align-items:center;
+}
+.join-form{margin-top:18px;}
+.q-top{display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap;}
+.q-count{font-size:12.5px;font-weight:750;color:#5b6577;font-variant-numeric:tabular-nums;}
+.q-count b{color:var(--ink);font-size:14px;}
+.timer{
+  margin-left:auto;display:inline-flex;align-items:center;gap:6px;
+  font-size:12.5px;font-weight:750;color:#3d4757;background:#f2f5fa;
+  border:1px solid #e3e8f1;border-radius:999px;padding:5px 11px;font-variant-numeric:tabular-nums;
+}
+.timer.is-urgent{background:var(--danger-soft);border-color:#f6cfcb;color:#b23a34;}
+.timer.is-none{color:var(--muted);}
+.qprog{display:flex;align-items:center;gap:0;margin-bottom:6px;}
+.qprog-track{flex:1;height:7px;border-radius:999px;background:#e7ecf4;overflow:hidden;}
+.qprog-fill{height:100%;border-radius:999px;background:linear-gradient(90deg,#3b6ef6,#7a5cf0);transition:width .25s;}
+.dots{display:flex;gap:6px;flex-wrap:wrap;margin-top:14px;}
+.dot-btn{
+  width:30px;height:30px;border-radius:9px;border:1px solid var(--line);background:#fff;
+  font-size:12px;font-weight:750;color:#5b6577;font-variant-numeric:tabular-nums;
+}
+.dot-btn.is-ans{background:var(--ok-soft);border-color:#bfe9d7;color:#087a51;}
+.dot-btn.is-cur{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft);color:var(--accent-dark);}
+.q-body{font-size:17px;font-weight:700;line-height:1.5;letter-spacing:-.01em;margin:14px 0 18px;overflow-wrap:anywhere;}
+@media (max-width:520px){.q-body{font-size:16px;}}
+.opt{
+  display:flex;align-items:center;gap:12px;width:100%;text-align:left;
+  border:1.5px solid var(--line);background:#fff;border-radius:13px;padding:13px 15px;
+  font-size:14.5px;font-weight:600;min-height:54px;transition:border-color .12s,background .12s;
+  color:var(--ink);line-height:1.4;
+}
+.opt + .opt{margin-top:8px;}
+.opt:hover{border-color:#cfd9ea;background:#fbfcff;}
+.opt.is-sel{border-color:var(--accent);background:var(--accent-soft);box-shadow:0 0 0 3px rgba(59,110,246,.1);}
+.opt-key{
+  width:26px;height:26px;flex:0 0 auto;border-radius:8px;background:#f1f4f9;color:#5b6577;
+  font-size:12.5px;font-weight:800;display:grid;place-items:center;
+}
+.opt.is-sel .opt-key{background:var(--accent);color:#fff;}
+.opt-text{flex:1;min-width:0;overflow-wrap:anywhere;}
+.oxwrap{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.oxbtn{
+  min-height:104px;border-radius:16px;border:1.5px solid var(--line);background:#fff;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;
+  font-size:34px;font-weight:800;color:var(--ink-soft);
+}
+.oxbtn small{font-size:12px;font-weight:650;color:var(--muted);}
+.oxbtn.is-sel{border-color:var(--accent);background:var(--accent-soft);color:var(--accent-dark);}
+.oxbtn.is-sel small{color:var(--accent-dark);}
+.shortin{
+  width:100%;min-height:54px;border:1.5px solid var(--line);border-radius:13px;
+  padding:13px 15px;font-size:15.5px;font-weight:650;outline:none;
+}
+.shortin:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft);}
+.short-hint{font-size:12px;color:var(--muted);margin-top:8px;line-height:1.5;}
+.m-nav{display:flex;gap:8px;margin-top:18px;}
+.m-nav .btn{flex:1 1 0;}
+.m-nav .btn-next{flex:1.6 1 0;}
+
+.wait-orb{
+  width:54px;height:54px;border-radius:50%;margin:0 auto 14px;
+  background:radial-gradient(circle at 32% 30%,#dfe9ff,#b9ccff);
+  box-shadow:0 0 0 10px rgba(59,110,246,.08);
+  animation:breathe 2.4s ease-in-out infinite;
+}
+@keyframes breathe{0%,100%{transform:scale(.94);opacity:.85;}50%{transform:scale(1);opacity:1;}}
+.wait{text-align:center;padding:26px 20px 30px;}
+.wait h2{margin:0 0 6px;font-size:17px;font-weight:800;letter-spacing:-.02em;}
+.wait p{margin:0;font-size:13px;color:var(--muted);line-height:1.65;}
+
+/* 결과 */
+.score-hero{
+  display:flex;align-items:center;gap:18px;padding:20px;
+  background:linear-gradient(135deg,#f4f8ff 0%,#ffffff 60%);
+  border-bottom:1px solid var(--line-soft);flex-wrap:wrap;
+}
+.score-num{display:flex;align-items:baseline;gap:3px;font-variant-numeric:tabular-nums;}
+.score-num b{font-size:40px;font-weight:850;letter-spacing:-.04em;line-height:1;}
+.score-num span{font-size:14px;font-weight:700;color:var(--muted);}
+.score-meta{flex:1;min-width:150px;}
+.score-title{font-size:15px;font-weight:800;margin-bottom:8px;display:flex;align-items:center;gap:7px;}
+.res-chips{display:flex;gap:6px;flex-wrap:wrap;}
+.res-chip{
+  font-size:11.5px;font-weight:700;color:#5b6577;background:#fff;
+  border:1px solid var(--line);border-radius:999px;padding:4px 9px;font-variant-numeric:tabular-nums;
+}
+.res-chip b{color:var(--ink);}
+.privacy-note{
+  display:flex;gap:8px;align-items:flex-start;font-size:12px;color:#4b5666;line-height:1.6;
+  background:#f8fafd;border:1px solid #edf1f7;border-radius:11px;padding:11px 12px;margin:14px 18px 0;
+}
+.privacy-note i{
+  flex:0 0 auto;width:16px;height:16px;border-radius:50%;background:var(--ok-soft);color:#087a51;
+  font-size:10px;font-style:normal;font-weight:800;display:grid;place-items:center;margin-top:1px;
+}
+.rev{border-top:1px solid var(--line-soft);padding:14px 18px;}
+.rev:first-child{border-top:0;}
+.rev-head{display:flex;gap:9px;align-items:flex-start;}
+.rev-mark{
+  width:22px;height:22px;flex:0 0 auto;border-radius:50%;display:grid;place-items:center;
+  font-size:11px;font-weight:800;margin-top:1px;
+}
+.rev-ok .rev-mark{background:var(--ok-soft);color:#087a51;}
+.rev-no .rev-mark{background:var(--danger-soft);color:#b23a34;}
+.rev-miss .rev-mark{background:#f1f4f9;color:#5b6577;}
+.rev-q{font-size:13.5px;font-weight:700;line-height:1.45;flex:1;min-width:0;overflow-wrap:anywhere;}
+.rev-pts{font-size:11.5px;font-weight:750;color:var(--muted);white-space:nowrap;font-variant-numeric:tabular-nums;}
+.kv{display:flex;gap:14px;flex-wrap:wrap;margin-top:8px;font-size:12.5px;color:#4b5666;}
+.kv div{display:flex;gap:5px;align-items:baseline;}
+.kv .k{color:var(--muted);font-weight:650;font-size:11.5px;}
+.kv .mine{font-weight:700;color:#3d4757;}
+.kv .right{font-weight:750;color:#087a51;}
+.kv .wrong{font-weight:700;color:#b23a34;}
+.explain{
+  margin-top:9px;background:#f8fafd;border:1px dashed #e1e7f1;border-radius:10px;
+  padding:10px 12px;font-size:12.5px;color:#4b5666;line-height:1.65;overflow-wrap:anywhere;
+}
+.locked-answers{
+  margin:0 18px 16px;font-size:12.5px;color:#8a6a1e;background:var(--warn-soft);
+  border:1px solid #f6e3bf;border-radius:11px;padding:11px 12px;line-height:1.6;
+}
+
+@media (max-width:640px){
+  .topbar{padding:10px 14px;}
+  .brand-sub{max-width:36vw;}
+  .page-head h1{font-size:21px;}
+  .shell{padding:16px 14px 84px;}
+  .tab{font-size:12.5px;padding:9px 8px;}
+  .card-head{padding:13px 14px;}
+  .card-body{padding:14px;}
+  .qitem{padding:13px 14px;}
+  .btn-lg{min-height:48px;}
+}
+
+/* 모달 열림 중 배경 스크롤 잠금 */
+body.modal-open{overflow:hidden;}
+
+/* 아주 좁은 화면: 상단 배지 문구를 점으로 축약해 버튼과 겹치지 않게 */
+@media (max-width:560px){
+  .sync-badge{font-size:10.5px;padding:5px 8px;}
+  .brand{gap:8px;}
+  .brand-text strong{font-size:13px;}
+  .brand-sub{max-width:30vw;}
+  .top-actions{gap:6px;}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">Q</span>
+      <div class="brand-text">
+        <strong>익스퀴즈</strong>
+        <span class="brand-sub">출제자 콘솔</span>
+      </div>
+    </div>
+    <div class="top-actions">
+      <span class="sync-badge is-wait" id="syncBadge" title="실시간 연결 상태"><span id="syncText">🟡 연결 중</span></span>
+    </div>
+  </header>
+
+  <main class="shell">
+    <section id="hostRoot" class="host">
+      <div class="page-head">
+        <div>
+          <div class="eyebrow"><span class="dot"></span>출제자 콘솔</div>
+          <h1 id="hostTitle">익스퀴즈</h1>
+          <p class="sub" id="hostSub">5문항 · 100점 · 제한시간 10분</p>
+        </div>
+        <div class="head-right">
+          <span class="pill is-waiting" id="statusPill"><span class="dotp"></span>대기 중</span>
+          <span class="mini-stat"><b id="miniJoin">0</b>명 참여</span>
+        </div>
+      </div>
+
+      <nav class="tabs" id="tabs" role="tablist" aria-label="출제자 메뉴">
+        <button type="button" class="tab is-active" id="tabManage">문제 관리</button>
+        <button type="button" class="tab" id="tabRun">시험 진행</button>
+        <button type="button" class="tab" id="tabDash">실시간 결과 <span class="tab-count" id="dashCount">0</span></button>
+      </nav>
+
+      <div class="panel" id="panelManage"></div>
+      <div class="panel" id="panelRun" hidden></div>
+      <div class="panel" id="panelDash" hidden></div>
+    </section>
+  </main>
+</div>
+
+<div id="modalRoot"></div>
+<div id="toastRoot" class="toasts" aria-live="polite"></div>
+
+<!-- 배포할 때 이 파일보다 먼저 window.__MEMBER_URL__ 값을 정해 두면 팀원 초대 링크의 기본값이 됩니다. -->
+<script>window.__MEMBER_URL__ = window.__MEMBER_URL__ || 'https://joonijoonoo.github.io/exquiz/';</script>
+<script>
+/* =========================================================================
+   익스퀴즈 — 공통 코어: 유틸 · 저장 · 시험 모델 · 채점 · CSV
+   (출제자 파일과 팀원 파일이 함께 쓰는 코드만 여기에 둔다)
+   ========================================================================= */
+
+var APP_NAME = '익스퀴즈';
+/* 예전 이름이 기본값으로 저장된 시험은 새 이름으로 옮긴다. */
+var LEGACY_APP_TITLES = ['제품교육 퀴즈대잔치', '제품교육 퀴즈대찬치'];
+var DB_BASE = 'https://quiz-62490-default-rtdb.asia-southeast1.firebasedatabase.app';
+var DB_PATH = {
+  exam: '/quiz/exam',
+  participants: '/quiz/participants',
+  participant: function (id) { return '/quiz/participants/' + id; }
+};
+var KEYS = {
+  myId: 'quiz:myId',
+  name: 'quiz:myName',
+  invite: 'quiz:inviteUrl',
+  tab: 'quiz:hostTab',
+  guide: 'quiz:guideOff',
+  goal: 'quiz:goalCount',
+  draft: 'quiz:draft:'
+};
+var TYPE_LABEL = { mcq: '5지선다', ox: 'OX', short: '단답형' };
+var TYPE_TAG = { mcq: 'tag-mcq', ox: 'tag-ox', short: 'tag-short' };
+var STATUS_LABEL = { waiting: '대기 중', running: '진행 중', ended: '종료' };
+var P_STATUS_LABEL = { waiting: '대기 중', answering: '응시 중', submitted: '제출 완료' };
+var CIRCLED = ['①', '②', '③', '④', '⑤'];
+
+/* ---------------------------------------------------------------- 유틸 */
+function $(id) { return document.getElementById(id); }
+function now() { return Date.now(); }
+function pad2(n) { n = String(n); return n.length < 2 ? '0' + n : n; }
+function hasOwn(o, k) { return Object.prototype.hasOwnProperty.call(o, k); }
+function clone(obj) { return JSON.parse(JSON.stringify(obj)); }
+function uid(prefix) {
+  return (prefix || 'id') + '_' + now().toString(36) + Math.random().toString(36).slice(2, 6);
+}
+function randInt(min, max) { return Math.floor(min + Math.random() * (max - min + 1)); }
+function fmtClock(ms) {
+  ms = Math.max(0, ms || 0);
+  var total = Math.floor(ms / 1000);
+  var h = Math.floor(total / 3600);
+  var m = Math.floor((total % 3600) / 60);
+  var s = total % 60;
+  return h > 0 ? h + ':' + pad2(m) + ':' + pad2(s) : pad2(m) + ':' + pad2(s);
+}
+function fmtDuration(ms) {
+  ms = Math.max(0, ms || 0);
+  var total = Math.floor(ms / 1000);
+  var h = Math.floor(total / 3600);
+  var m = Math.floor((total % 3600) / 60);
+  var s = total % 60;
+  if (h > 0) { return h + '시간 ' + m + '분'; }
+  if (m > 0) { return m + '분 ' + pad2(s) + '초'; }
+  return s + '초';
+}
+function fmtHM(ts) {
+  if (!ts) { return '-'; }
+  var d = new Date(ts);
+  return pad2(d.getHours()) + ':' + pad2(d.getMinutes());
+}
+function fmtHMS(ts) {
+  if (!ts) { return '-'; }
+  var d = new Date(ts);
+  return pad2(d.getHours()) + ':' + pad2(d.getMinutes()) + ':' + pad2(d.getSeconds());
+}
+function fmtDate(ts) {
+  var d = new Date(ts);
+  return String(d.getFullYear()) + pad2(d.getMonth() + 1) + pad2(d.getDate());
+}
+function fmtDateTime(ts) {
+  if (!ts) { return ''; }
+  var d = new Date(ts);
+  return String(d.getFullYear()) + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()) +
+    ' ' + pad2(d.getHours()) + ':' + pad2(d.getMinutes());
+}
+function debounce(fn, ms) {
+  var t = null;
+  return function () {
+    var ctx = this, args = arguments;
+    if (t) { clearTimeout(t); }
+    t = setTimeout(function () { t = null; fn.apply(ctx, args); }, ms);
+  };
+}
+function getParam(name) {
+  var q = String((window.location && window.location.search) || '');
+  if (q.charAt(0) === '?') { q = q.slice(1); }
+  var parts = q.split('&');
+  for (var i = 0; i < parts.length; i++) {
+    var pair = parts[i].split('=');
+    if (decodeURIComponent(pair[0] || '') === name) {
+      return decodeURIComponent((pair[1] || '').replace(/\+/g, ' '));
+    }
+  }
+  return '';
+}
+function paintBrandTitle(title) {
+  var t = String(title || '').trim() || APP_NAME;
+  try { document.title = (t === APP_NAME ? APP_NAME : t + ' · ' + APP_NAME); } catch (e) { /* 무시 */ }
+}
+
+/* ------------------------------------------------------------- 저장소 */
+var LS = (function () {
+  var ok = false, mem = {};
+  try {
+    window.localStorage.setItem('quiz:__probe', '1');
+    window.localStorage.removeItem('quiz:__probe');
+    ok = true;
+  } catch (e) { ok = false; }
+  return {
+    available: ok,
+    get: function (k) {
+      if (ok) { try { return window.localStorage.getItem(k); } catch (e) { /* 무시 */ } }
+      return hasOwn(mem, k) ? mem[k] : null;
+    },
+    set: function (k, v) {
+      if (ok) { try { window.localStorage.setItem(k, v); return; } catch (e) { /* 무시 */ } }
+      mem[k] = String(v);
+    },
+    del: function (k) {
+      if (ok) { try { window.localStorage.removeItem(k); } catch (e) { /* 무시 */ } }
+      delete mem[k];
+    },
+    getJSON: function (k) {
+      var raw = this.get(k);
+      if (raw == null) { return null; }
+      try { return JSON.parse(raw); } catch (e) { return null; }
+    },
+    setJSON: function (k, v) { this.set(k, JSON.stringify(v)); }
+  };
+})();
+
+/* -------------------------------------------------------------- 시험 */
+var Exam = {
+  data: null,
+
+  normalize: function (d) {
+    var out = clone(d || {});
+    var rawTitle = String(out.title == null ? '' : out.title).trim();
+    out.title = (!rawTitle || LEGACY_APP_TITLES.indexOf(rawTitle) >= 0) ? APP_NAME : rawTitle;
+    out.status = (out.status === 'running' || out.status === 'ended') ? out.status : 'waiting';
+    var t = parseInt(out.timeLimitMin, 10);
+    out.timeLimitMin = (isNaN(t) || t < 0) ? 0 : Math.min(300, t);
+    if (out.startedAt == null) { out.startedAt = null; }
+    if (out.endedAt == null) { out.endedAt = null; }
+    out.updatedAt = Number(out.updatedAt) || 0;
+    out.round = Math.max(1, parseInt(out.round, 10) || 1);
+    var qs = [], list = out.questions || [];
+    for (var i = 0; i < list.length; i++) {
+      var q = list[i];
+      if (!q || !String(q.text || '').trim()) { continue; }
+      q.type = (q.type === 'ox' || q.type === 'short') ? q.type : 'mcq';
+      q.points = Math.max(1, parseInt(q.points, 10) || 1);
+      q.text = String(q.text);
+      /* 단답형 전용: 정답 단어가 포함되면 정답 처리(기본 false) */
+      if (q.type === 'short') { q.matchContains = q.matchContains === true; }
+      else { delete q.matchContains; }
+      qs.push(q);
+    }
+    out.questions = qs;
+    return out;
+  },
+  load: function (d) {
+    if (!d || !(d.questions instanceof Array)) { return false; }
+    this.data = this.normalize(d);
+    return true;
+  },
+  sig: function () { return JSON.stringify(this.data); },
+  totalPoints: function () {
+    var qs = (this.data && this.data.questions) || [], sum = 0;
+    for (var i = 0; i < qs.length; i++) { sum += Number(qs[i].points) || 0; }
+    return sum;
+  },
+  status: function () { return (this.data && this.data.status) || 'waiting'; },
+  hasQuestions: function () { return !!(this.data && this.data.questions && this.data.questions.length); },
+  find: function (qid) {
+    var qs = (this.data && this.data.questions) || [];
+    for (var i = 0; i < qs.length; i++) { if (qs[i].id === qid) { return i; } }
+    return -1;
+  },
+  applyStatus: function (status) {
+    var ex = this.data;
+    if (!ex) { return; }
+    if (ex.status === status && status !== 'running') { return; }
+    ex.status = status;
+    if (status === 'running') { ex.startedAt = now(); ex.endedAt = null; }
+    else if (status === 'ended') { ex.endedAt = now(); }
+    else { ex.startedAt = null; ex.endedAt = null; }
+    ex.updatedAt = now();
+  },
+  remaining: function () {
+    var ex = this.data;
+    if (!ex || !ex.startedAt || ex.status !== 'running') { return null; }
+    if (!ex.timeLimitMin || ex.timeLimitMin <= 0) { return -1; }
+    return Math.max(0, ex.startedAt + ex.timeLimitMin * 60000 - now());
+  }
+};
+
+/* -------------------------------------------------------------- 모델 */
+var Model = {
+  normShort: function (s, q) {
+    var t = String(s == null ? '' : s);
+    t = t.replace(/[\u200b\ufeff]/g, '').trim();
+    if (q.ignoreSpace !== false) { t = t.replace(/[\s\u3000]+/g, ''); }
+    if (q.ignoreCase !== false) { t = t.toLowerCase(); }
+    return t;
+  },
+  isBlank: function (raw) {
+    return raw === null || raw === undefined || String(raw).trim() === '';
+  },
+  judge: function (q, raw) {
+    if (!q || this.isBlank(raw)) { return { answered: false, correct: false }; }
+    if (q.type === 'mcq') {
+      return { answered: true, correct: Number(raw) === Number(q.answer) };
+    }
+    if (q.type === 'ox') {
+      return { answered: true, correct: String(raw).toUpperCase() === String(q.answer).toUpperCase() };
+    }
+    var list = q.shortAnswers || [], mine = this.normShort(raw, q);
+    if (mine === '') { return { answered: false, correct: false }; }
+    var contains = [];
+    for (var i = 0; i < list.length; i++) {
+      var normTarget = this.normShort(list[i], q);
+      if (normTarget === '') { continue; }
+      if (normTarget === mine) { return { answered: true, correct: true }; }
+      if (q.matchContains === true) { contains.push(normTarget); }
+    }
+    /* 정답 단어가 포함되면 정답 처리 (예: '서울' → '서울특별시'도 정답) */
+    for (var k = 0; k < contains.length; k++) {
+      if (mine.indexOf(contains[k]) !== -1) { return { answered: true, correct: true }; }
+    }
+    return { answered: true, correct: false };
+  },
+  answerText: function (q, raw) {
+    if (this.isBlank(raw)) { return ''; }
+    if (q.type === 'mcq') {
+      var i = Number(raw), c = (q.choices || [])[i];
+      return c ? (CIRCLED[i] || String(i + 1)) + ' ' + c : String(raw);
+    }
+    if (q.type === 'ox') { return String(raw).toUpperCase(); }
+    return String(raw);
+  },
+  correctText: function (q) {
+    if (!q) { return ''; }
+    if (q.type === 'mcq') {
+      var i = Number(q.answer), c = (q.choices || [])[i];
+      return c ? (CIRCLED[i] || String(i + 1)) + ' ' + c : '미지정';
+    }
+    if (q.type === 'ox') { return String(q.answer || '-').toUpperCase(); }
+    var list = q.shortAnswers || [];
+    return list.length ? list.join(' / ') : '미지정';
+  },
+  evaluate: function (exam, rec) {
+    var qs = (exam && exam.questions) || [];
+    var answers = (rec && rec.answers) || {};
+    var items = [], answered = 0, correct = 0, earned = 0, max = 0;
+    for (var i = 0; i < qs.length; i++) {
+      var q = qs[i], pts = Number(q.points) || 0;
+      max += pts;
+      var a = answers[q.id];
+      var raw = a ? a.raw : null;
+      var j = this.judge(q, raw);
+      if (j.answered) { answered++; }
+      if (j.correct) { correct++; earned += pts; }
+      items.push({
+        q: q, raw: raw, answered: j.answered, correct: j.correct,
+        points: pts, earned: j.correct ? pts : 0
+      });
+    }
+    var started = (rec && (rec.startedAt || rec.joinedAt)) || now();
+    var ended = (rec && rec.submittedAt) || now();
+    return {
+      items: items,
+      total: qs.length,
+      answered: answered,
+      correct: correct,
+      wrong: answered - correct,
+      missing: qs.length - answered,
+      earned: earned,
+      max: max,
+      correctRate: qs.length ? Math.round(correct / qs.length * 100) : 0,
+      scoreRate: max ? Math.round(earned / max * 100) : 0,
+      elapsed: Math.max(0, ended - started)
+    };
+  },
+  grade: function (exam, rec) {
+    var ev = this.evaluate(exam, rec);
+    return {
+      score: ev.earned,
+      maxScore: ev.max,
+      correctCount: ev.correct,
+      durationSec: Math.round(ev.elapsed / 1000),
+      answered: ev.answered
+    };
+  },
+  blankRecord: function (id, name, exam) {
+    return {
+      id: id, name: name || '', status: 'waiting', answers: {},
+      joinedAt: now(), startedAt: null, submittedAt: null,
+      score: null, maxScore: Exam.totalPoints(), correctCount: null, durationSec: null,
+      index: 0, lastSeen: now()
+    };
+  },
+  statusText: function (rec) {
+    if (!rec) { return '-'; }
+    return P_STATUS_LABEL[rec.status] || '대기 중';
+  }
+};
+
+/* CSV·진행률은 출제자 화면(host.js)에만 둔다. */
+
+/* =========================================================================
+   실시간 연동 — Firebase Realtime Database REST(fetch) + SSE(EventSource)
+   · 읽기/쓰기: REST  <DB_BASE>/<path>.json
+   · 구독: EventSource(SSE), 연결되지 않으면 2초 폴백 폴링
+   ========================================================================= */
+
+var FB = {
+  base: DB_BASE,
+  esOpen: 0,
+  subs: 0,
+  failed: false,
+  state: 'connecting',
+  _watchers: [],
+
+  url: function (path) { return this.base + path + '.json'; },
+
+  watch: function (fn) {
+    this._watchers.push(fn);
+    try { fn(this.state); } catch (e) { /* 무시 */ }
+  },
+  setState: function (s) {
+    if (this.state === s) { return; }
+    this.state = s;
+    for (var i = 0; i < this._watchers.length; i++) {
+      try { this._watchers[i](s); } catch (e) { /* 무시 */ }
+    }
+  },
+  refresh: function () {
+    if (this.esOpen > 0) { this.setState('live'); return; }
+    if (this.failed) { this.setState('offline'); return; }
+    if (this.subs > 0) { this.setState('polling'); return; }
+    this.setState('connecting');
+  },
+  note: function (ok) {
+    this.failed = !ok;
+    this.refresh();
+  },
+
+  request: function (method, path, body, cb) {
+    var url = this.url(path);
+    var opts = { method: method, cache: 'no-store' };
+    if (body !== undefined && body !== null && method !== 'GET' && method !== 'DELETE') {
+      opts.headers = { 'Content-Type': 'application/json' };
+      opts.body = JSON.stringify(body);
+    }
+    if (typeof window.fetch !== 'function') {
+      this.note(false);
+      if (cb) { cb('no-fetch', null); }
+      return;
+    }
+    var self = this;
+    try {
+      window.fetch(url, opts).then(function (res) {
+        var status = (res && res.status) || 0;
+        return res.text().then(function (txt) {
+          var data = null;
+          try { data = txt ? JSON.parse(txt) : null; } catch (e) { data = null; }
+          if (status >= 200 && status < 300) {
+            self.note(true);
+            if (cb) { cb(null, data); }
+          } else {
+            self.note(false);
+            if (cb) { cb('http-' + status, data); }
+          }
+        });
+      })['catch'](function () {
+        self.note(false);
+        if (cb) { cb('network', null); }
+      });
+    } catch (e) {
+      this.note(false);
+      if (cb) { cb('throw', null); }
+    }
+  },
+
+  get: function (path, cb) { this.request('GET', path, null, cb); },
+  put: function (path, value, cb) { this.request('PUT', path, value, cb); },
+  patch: function (path, value, cb) { this.request('PATCH', path, value, cb); },
+  del: function (path, cb) { this.request('DELETE', path, null, cb); },
+
+  subscribe: function (path, onData) { return new FBSub(path, onData); }
+};
+
+/* Firebase가 보내는 경로 단위 변경(/a/b)을 로컬 사본에 반영한다. */
+function setPath(root, path, value) {
+  var parts = String(path || '').split('/');
+  var node = root, i;
+  for (i = 0; i < parts.length; i++) {
+    if (parts[i] === '') { continue; }
+    if (i === parts.length - 1) {
+      if (value === null || value === undefined) { delete node[parts[i]]; }
+      else { node[parts[i]] = value; }
+      return root;
+    }
+    if (!node[parts[i]] || typeof node[parts[i]] !== 'object') { node[parts[i]] = {}; }
+    node = node[parts[i]];
+  }
+  return root;
+}
+
+function FBSub(path, onData) {
+  this.path = path;
+  this.onData = onData;
+  this.data = null;
+  this.es = null;
+  this.open = false;
+  this.closed = false;
+  this.retry = null;
+  this.poll = null;
+  FB.subs++;
+  this.start();
+}
+
+FBSub.prototype.start = function () {
+  var self = this;
+  this.fetchNow();
+  this.connect();
+  this.poll = setInterval(function () { self.tick(); }, 2000);
+};
+
+FBSub.prototype.fetchNow = function () {
+  var self = this;
+  FB.get(this.path, function (err, data) {
+    if (self.closed) { return; }
+    if (err) { FB.note(false); return; }
+    FB.note(true);
+    self.deliver(data);
+  });
+};
+
+FBSub.prototype.deliver = function (data) {
+  this.data = data;
+  try { this.onData(data); } catch (e) { if (window.console) { window.console.log(e); } }
+};
+
+FBSub.prototype.apply = function (name, raw) {
+  var p = null;
+  try { p = JSON.parse(raw); } catch (e) { return; }
+  if (!p) { return; }
+  if (name === 'patch') {
+    var patch = p.data || {}, base = this.data;
+    if (!base || typeof base !== 'object') { base = {}; }
+    for (var k in patch) {
+      if (hasOwn(patch, k)) { setPath(base, k, patch[k]); }
+    }
+    this.deliver(base);
+    return;
+  }
+  if (name !== 'put' && name !== 'message') { return; }
+  var path = p.path || '/';
+  if (path === '/' || path === '') { this.deliver(p.data); return; }
+  var root = this.data;
+  if (!root || typeof root !== 'object') { root = {}; }
+  setPath(root, path, p.data);
+  this.deliver(root);
+};
+
+FBSub.prototype.connect = function () {
+  var self = this;
+  if (this.closed) { return; }
+  if (typeof window.EventSource !== 'function') {
+    this.open = false;
+    FB.refresh();
+    return;
+  }
+  var es = null;
+  try { es = new window.EventSource(FB.url(this.path)); }
+  catch (e) { es = null; }
+  if (!es) {
+    this.open = false;
+    FB.note(false);
+    this.retryLater();
+    return;
+  }
+  this.es = es;
+  es.onopen = function () {
+    if (self.closed) { return; }
+    if (!self.open) { self.open = true; FB.esOpen++; }
+    FB.note(true);
+  };
+  es.onerror = function () {
+    if (self.closed) { return; }
+    self.drop();
+    FB.refresh();
+    self.retryLater();
+  };
+  es.onmessage = function (ev) { self.apply('message', ev && ev.data); };
+  if (typeof es.addEventListener === 'function') {
+    es.addEventListener('put', function (ev) { self.apply('put', ev && ev.data); });
+    es.addEventListener('patch', function (ev) { self.apply('patch', ev && ev.data); });
+  }
+};
+
+FBSub.prototype.drop = function () {
+  if (this.open) { this.open = false; FB.esOpen = Math.max(0, FB.esOpen - 1); }
+  if (this.es) { try { this.es.close(); } catch (e) { /* 무시 */ } this.es = null; }
+};
+
+FBSub.prototype.retryLater = function () {
+  var self = this;
+  if (this.closed || this.retry) { return; }
+  this.retry = setTimeout(function () { self.retry = null; self.connect(); }, 5000);
+};
+
+/* SSE가 살아 있으면 폴링하지 않고, 끊긴 동안에만 2초마다 전체를 다시 읽는다. */
+FBSub.prototype.tick = function () {
+  if (this.closed || this.open) { return; }
+  this.fetchNow();
+};
+
+FBSub.prototype.stop = function () {
+  this.closed = true;
+  this.drop();
+  if (this.poll) { clearInterval(this.poll); this.poll = null; }
+  if (this.retry) { clearTimeout(this.retry); this.retry = null; }
+  FB.subs = Math.max(0, FB.subs - 1);
+  FB.refresh();
+};
+
+/* =========================================================================
+   공통 UI 조각 — DOM 생성 · 토스트 · 모달 · 복사 · 내려받기 · 상태 표시
+   ========================================================================= */
+
+function el(tag, opts, kids) {
+  var node = document.createElement(tag);
+  if (opts) {
+    if (opts.cls) { node.className = opts.cls; }
+    if (opts.id) { node.id = opts.id; }
+    if (opts.text != null) { node.textContent = String(opts.text); }
+    if (opts.type) { node.type = opts.type; }
+    if (opts.value != null) { node.value = opts.value; }
+    if (opts.placeholder != null) { node.placeholder = opts.placeholder; }
+    if (opts.title != null) { node.title = opts.title; }
+    if (opts.disabled != null) { node.disabled = !!opts.disabled; }
+    if (opts.hidden != null) { node.hidden = !!opts.hidden; }
+    if (opts.attrs) {
+      for (var k in opts.attrs) {
+        if (hasOwn(opts.attrs, k) && opts.attrs[k] != null) { node.setAttribute(k, String(opts.attrs[k])); }
+      }
+    }
+    if (opts.style) {
+      for (var s in opts.style) {
+        if (hasOwn(opts.style, s)) { node.style[s] = opts.style[s]; }
+      }
+    }
+    if (opts.dataset) {
+      for (var d in opts.dataset) {
+        if (hasOwn(opts.dataset, d)) { node.dataset[d] = String(opts.dataset[d]); }
+      }
+    }
+    if (opts.on) {
+      for (var e in opts.on) {
+        if (hasOwn(opts.on, e)) { node.addEventListener(e, opts.on[e]); }
+      }
+    }
+  }
+  appendKids(node, kids);
+  return node;
+}
+
+function appendKids(node, kids) {
+  if (kids == null || kids === false) { return node; }
+  if (typeof kids === 'string' || typeof kids === 'number') {
+    node.appendChild(document.createTextNode(String(kids)));
+    return node;
+  }
+  if (kids.nodeType) { node.appendChild(kids); return node; }
+  if (typeof kids.length === 'number') {
+    for (var i = 0; i < kids.length; i++) { appendKids(node, kids[i]); }
+    return node;
+  }
+  return node;
+}
+
+function clearNode(node) {
+  if (!node) { return; }
+  while (node.firstChild) { node.removeChild(node.firstChild); }
+}
+
+function btn(label, cls, onClick, opts) {
+  var o = { cls: cls || 'btn', type: 'button', text: label, on: onClick ? { click: onClick } : null };
+  if (opts) {
+    if (opts.title) { o.title = opts.title; }
+    if (opts.attrs) { o.attrs = opts.attrs; }
+    if (opts.disabled != null) { o.disabled = opts.disabled; }
+    if (opts.id) { o.id = opts.id; }
+  }
+  return el('button', o);
+}
+
+function tagNode(text, cls) { return el('span', { cls: 'tag ' + (cls || ''), text: text }); }
+function hintNode(text, cls) { return el('p', { cls: cls || 'hintline', text: text }); }
+
+/* ------------------------------------------------------- 연결 상태 배지 */
+function paintSync(state) {
+  var badge = $('syncBadge'), label = $('syncText');
+  if (!badge || !label) { return; }
+  var map = {
+    live: ['is-live', '🟢 실시간 연결됨', 'Firebase 실시간 연결이 살아 있습니다'],
+    connecting: ['is-wait', '🟡 연결 중', '실시간 연결을 준비하고 있습니다'],
+    polling: ['is-poll', '🟡 재연결 중 · 2초 동기화', '실시간 연결이 끊겨 2초마다 다시 확인합니다'],
+    offline: ['is-off', '🔴 연결 끊김 · 재시도 중', 'DB에 연결하지 못했습니다. 네트워크를 확인해 주세요']
+  };
+  var v = map[state] || map.connecting;
+  badge.className = 'sync-badge ' + v[0];
+  label.textContent = v[1];
+  badge.title = v[2];
+}
+
+/* --------------------------------------------------------------- 토스트 */
+function toast(msg, kind) {
+  var root = $('toastRoot');
+  if (!root) { return; }
+  var node = el('div', { cls: 'toast' + (kind ? ' toast-' + kind : ''), text: msg });
+  root.appendChild(node);
+  setTimeout(function () {
+    node.className = node.className + ' is-out';
+    setTimeout(function () { if (node.parentNode) { node.parentNode.removeChild(node); } }, 280);
+  }, 2400);
+}
+
+/* --------------------------------------------------------------- 모달 */
+var Modal = {
+  back: null,
+  close: function () {
+    if (this.back && this.back.parentNode) { this.back.parentNode.removeChild(this.back); }
+    this.back = null;
+    if (document.body) { document.body.className = ''; }
+  },
+  open: function (opts) {
+    this.close();
+    var self = this;
+    if (document.body) { document.body.className = 'modal-open'; }
+    var head = el('div', { cls: 'modal-head' }, [
+      el('h3', { text: opts.title || '' }),
+      btn('✕', 'btn btn-ghost btn-sm', function () { self.close(); }, { attrs: { 'aria-label': '닫기' } })
+    ]);
+    var body = el('div', { cls: 'modal-body' }, opts.body || null);
+    var box = el('div', { cls: 'modal' + (opts.wide ? ' is-wide' : '') }, [head, body]);
+    if (opts.foot) { box.appendChild(el('div', { cls: 'modal-foot' }, opts.foot)); }
+    var back = el('div', { cls: 'modal-back' }, [box]);
+    if (opts.static !== true) {
+      back.addEventListener('click', function (ev) {
+        if (ev && ev.target === back) { self.close(); }
+      });
+    }
+    document.body.appendChild(back);
+    this.back = back;
+    if (opts.focus) {
+      setTimeout(function () { try { opts.focus.focus(); } catch (e) { /* 무시 */ } }, 30);
+    }
+    return { close: function () { self.close(); }, body: body };
+  }
+};
+
+function confirmAsk(opts, onOk) {
+  var okCls = opts.danger ? 'btn btn-danger' : 'btn btn-primary';
+  var m = Modal.open({
+    title: opts.title || '확인',
+    body: el('div', null, [
+      el('p', { cls: 'hintline', text: opts.body || '' }),
+      opts.detail ? el('p', { cls: 'hintline', text: opts.detail }) : null
+    ]),
+    foot: [
+      btn('취소', 'btn', function () { m.close(); }),
+      btn(opts.okLabel || '확인', okCls, function () { m.close(); onOk(); })
+    ]
+  });
+  return m;
+}
+
+/* ------------------------------------------------------------- 클립보드 */
+function copyText(text, done) {
+  function fallback() {
+    var ok = false;
+    var ta = el('textarea', { cls: 'textarea', value: text });
+    ta.style.position = 'fixed';
+    ta.style.top = '-1000px';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    try {
+      ta.focus();
+      ta.select();
+      if (document.execCommand) { ok = document.execCommand('copy'); }
+    } catch (e) { ok = false; }
+    if (ta.parentNode) { ta.parentNode.removeChild(ta); }
+    done(!!ok);
+  }
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function () { done(true); }, function () { fallback(); });
+      return;
+    }
+  } catch (e) { /* fallback */ }
+  fallback();
+}
+
+/* --------------------------------------------------------- 파일 내려받기 */
+function downloadText(filename, text, mime) {
+  try {
+    var blob = new Blob([text], { type: mime || 'text/plain;charset=utf-8' });
+    var url = URL.createObjectURL(blob);
+    var a = el('a', { attrs: { href: url, download: filename } });
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function () { try { URL.revokeObjectURL(url); } catch (e) { /* 무시 */ } }, 1500);
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+/* 상태 배지·CSV는 출제자 화면(host.js)에만 둔다. */
+
+/* =========================================================================
+   출제자 전용 화면 — 문제 관리 · 시험 진행 · 실시간 결과 대시보드
+   ========================================================================= */
+
+/* 기본 샘플 5문항 (DB의 /quiz/exam.json이 비어 있을 때 한 번 저장된다) */
+function seedExam() {
+  return {
+    v: 1,
+    title: APP_NAME,
+    status: 'waiting',
+    timeLimitMin: 10,
+    round: 1,
+    startedAt: null,
+    endedAt: null,
+    updatedAt: now(),
+    questions: [
+      {
+        id: 'q1', type: 'mcq',
+        text: '태양계에서 가장 큰 행성은?',
+        choices: ['지구', '화성', '목성', '토성', '금성'],
+        answer: 2, points: 20,
+        explain: '목성은 지름이 약 14만 km로 지구의 11배가 넘습니다. 질량도 다른 행성을 모두 합친 것보다 큽니다.'
+      },
+      {
+        id: 'q2', type: 'mcq',
+        text: '24절기 중 1년에서 낮이 가장 긴 날은?',
+        choices: ['동지', '하지', '춘분', '추분', '입춘'],
+        answer: 1, points: 20,
+        explain: '하지는 태양이 가장 높이 뜨고 낮이 가장 긴 날입니다. 반대로 밤이 가장 긴 날은 동지입니다.'
+      },
+      {
+        id: 'q3', type: 'ox',
+        text: '빛은 소리보다 빠르게 이동한다.',
+        answer: 'O', points: 20,
+        explain: '빛은 진공에서 초속 약 30만 km, 소리는 공기 중에서 초속 약 340m입니다.'
+      },
+      {
+        id: 'q4', type: 'short',
+        text: '한글을 창제한 조선의 왕은?',
+        shortAnswers: ['세종', '세종대왕'],
+        ignoreCase: true, ignoreSpace: true, points: 20,
+        explain: '세종대왕은 1443년 훈민정음을 창제하고 1446년에 반포했습니다.'
+      },
+      {
+        id: 'q5', type: 'short',
+        text: '대한민국의 수도는?',
+        shortAnswers: ['서울', '서울특별시', 'Seoul'],
+        ignoreCase: true, ignoreSpace: true, matchContains: true, points: 20,
+        explain: '대한민국의 수도는 서울특별시입니다.'
+      }
+    ]
+  };
+}
+
+function statusPill(status) {
+  return el('span', { cls: 'pill is-' + status }, [
+    el('span', { cls: 'dotp' }),
+    STATUS_LABEL[status] || status
+  ]);
+}
+
+function statusChip(rec) {
+  if (rec.status === 'submitted') { return el('span', { cls: 'st st-done' }, [el('i'), '제출 완료']); }
+  if (rec.status === 'answering') { return el('span', { cls: 'st st-live' }, [el('i'), '응시 중']); }
+  return el('span', { cls: 'st st-wait' }, [el('i'), '대기 중']);
+}
+
+function progressOf(exam, rec) {
+  var qs = (exam && exam.questions) || [];
+  if (!qs.length) { return 0; }
+  var answered = 0, answers = (rec && rec.answers) || {};
+  for (var i = 0; i < qs.length; i++) {
+    var a = answers[qs[i].id];
+    if (a && !Model.isBlank(a.raw)) { answered++; }
+  }
+  return Math.round(answered / qs.length * 100);
+}
+
+function csvCell(v) {
+  var s = v == null ? '' : String(v);
+  s = s.replace(/\r\n|\r|\n/g, ' ');
+  return '"' + s.replace(/"/g, '""') + '"';
+}
+
+function csvText(exam, recs) {
+  var qs = (exam && exam.questions) || [];
+  var head = ['이름', '상태', '점수', '만점', '정답', '오답', '미응답', '정답률(%)', '소요시간(초)', '제출시각'];
+  for (var i = 0; i < qs.length; i++) { head.push('Q' + (i + 1)); }
+  var rows = [head];
+  for (var r = 0; r < recs.length; r++) {
+    var rec = recs[r], ev = Model.evaluate(exam, rec);
+    var row = [
+      rec.name || '이름 없음',
+      Model.statusText(rec),
+      ev.earned, ev.max, ev.correct, ev.wrong, ev.missing, ev.correctRate,
+      Math.round(ev.elapsed / 1000),
+      rec.submittedAt ? fmtDateTime(rec.submittedAt) : ''
+    ];
+    for (var j = 0; j < ev.items.length; j++) {
+      var it = ev.items[j];
+      row.push(it.answered ? (it.correct ? '정답 ' : '오답 ') + Model.answerText(it.q, it.raw) : '미응답');
+    }
+    rows.push(row);
+  }
+  var lines = [];
+  for (var a = 0; a < rows.length; a++) {
+    var cells = [];
+    for (var b = 0; b < rows[a].length; b++) { cells.push(csvCell(rows[a][b])); }
+    lines.push(cells.join(','));
+  }
+  return '\ufeff' + lines.join('\r\n') + '\r\n';
+}
+
+function csvFileName() {
+  var d = new Date();
+  return '퀴즈결과_' + fmtDate(now()) + '_' + pad2(d.getHours()) + pad2(d.getMinutes()) + '.csv';
+}
+
+var Host = {
+  tab: 'manage',
+  recs: {},
+  subExam: null,
+  subParts: null,
+  subscribed: false,
+  needLoad: false,
+  lastLoadTry: 0,
+  pendingSave: false,
+  saveTimer: null,
+  lastFlushTry: 0,
+  autoEnded: false,
+  subSig: '',
+  dashSig: '',
+  dashTimeEl: null,
+  _pillStatus: null,
+
+  /* ---------------------------------------------------------- 시작 */
+  init: function () {
+    var self = this;
+    FB.watch(paintSync);
+    this.bind();
+    var saved = LS.get(KEYS.tab);
+    if (saved === 'manage' || saved === 'run' || saved === 'dash') { this.tab = saved; }
+    this.loadExam();
+    setInterval(function () { self.tick(); }, 1000);
+    document.addEventListener('keydown', function (ev) {
+      if (ev && (ev.key === 'Escape' || ev.keyCode === 27)) { Modal.close(); }
+    });
+  },
+
+  bind: function () {
+    var self = this;
+    var tabs = [['manage', $('tabManage')], ['run', $('tabRun')], ['dash', $('tabDash')]];
+    for (var i = 0; i < tabs.length; i++) {
+      (function (name, node) {
+        if (node) { node.addEventListener('click', function () { self.switchTab(name); }); }
+      })(tabs[i][0], tabs[i][1]);
+    }
+  },
+
+  loadExam: function () {
+    var self = this;
+    this.lastLoadTry = now();
+    FB.get(DB_PATH.exam, function (err, data) {
+      if (err) {
+        self.needLoad = true;
+      if (!Exam.data) { Exam.load(seedExam()); self.render(); }
+        return;
+      }
+      self.needLoad = false;
+      if (data && data.questions instanceof Array) {
+        Exam.load(data);
+        self.afterLoad();
+        return;
+      }
+      /* DB가 비어 있고, 연결이 끊긴 동안 만든 사본이 있으면 그 사본을 올린다. */
+      if (Exam.data) {
+        FB.put(DB_PATH.exam, Exam.data, function (e3) {
+          if (!e3) { self.afterLoad(); }
+          else { self.pendingSave = true; self.render(); }
+        });
+        return;
+      }
+      var seed = seedExam();
+      Exam.load(seed);
+      FB.put(DB_PATH.exam, seed, function (e2) {
+        if (!e2) { self.afterLoad(); }
+        else { self.pendingSave = true; self.render(); }
+      });
+    });
+  },
+
+  afterLoad: function () {
+    if (this.subscribed) { this.render(); return; }
+    this.subscribed = true;
+    var self = this;
+    this.subParts = FB.subscribe(DB_PATH.participants, function (d) {
+      self.recs = (d && typeof d === 'object') ? d : {};
+      self.renderLive();
+    });
+    this.subExam = FB.subscribe(DB_PATH.exam, function (d) { self.onExam(d); });
+    this.render();
+  },
+
+  onExam: function (data) {
+    if (!data || !(data.questions instanceof Array)) { return; }
+    if (this.pendingSave) { return; }
+    var incoming = Exam.normalize(data);
+    if (JSON.stringify(incoming) === Exam.sig()) { return; }
+    Exam.data = incoming;
+    this.autoEnded = false;
+    this.render();
+  },
+
+  /* ------------------------------------------------------- 저장/폴링 */
+  saveExam: function () {
+    if (!Exam.data) { return; }
+    Exam.data.updatedAt = now();
+    this.pendingSave = true;
+    var self = this;
+    if (this.saveTimer) { clearTimeout(this.saveTimer); }
+    this.saveTimer = setTimeout(function () { self.saveTimer = null; self.flush(); }, 350);
+  },
+
+  flush: function () {
+    if (!Exam.data) { return; }
+    var self = this;
+    this.lastFlushTry = now();
+    FB.put(DB_PATH.exam, Exam.data, function (err) {
+      if (!err) { self.pendingSave = false; }
+    });
+  },
+
+  tick: function () {
+    if (this.needLoad && !this.subscribed && now() - this.lastLoadTry > 4000) { this.loadExam(); }
+    if (this.pendingSave && !this.saveTimer && now() - this.lastFlushTry > 2000) { this.flush(); }
+    if (!Exam.data) { return; }
+
+    var ex = Exam.data;
+    if (ex.status === 'running' && ex.timeLimitMin > 0 && ex.startedAt && !this.autoEnded &&
+        now() >= ex.startedAt + ex.timeLimitMin * 60000) {
+      this.autoEnded = true;
+      var n = this.finalize();
+      Exam.applyStatus('ended');
+      this.saveExam();
+      this.render();
+      toast('제한시간이 끝나 시험을 자동 종료했습니다.' + (n ? ' ' + n + '명을 자동 제출했습니다.' : ''), 'warn');
+      return;
+    }
+    if (this.tab === 'run') { this.renderRunLive(); }
+    else if (this.tab === 'dash') {
+      if (this.dashTimeEl) { this.dashTimeEl.textContent = '마지막 갱신 ' + fmtHMS(now()); }
+    }
+  },
+
+  /* --------------------------------------------------------- 공통 렌더 */
+  switchTab: function (name) {
+    this.tab = name;
+    LS.set(KEYS.tab, name);
+    this.render();
+  },
+
+  render: function () {
+    if (!Exam.data) { return; }
+    this.renderHeader();
+    this.renderPanel();
+  },
+
+  renderHeader: function () {
+    var ex = Exam.data;
+    if (!ex) { return; }
+    var total = Exam.totalPoints();
+    var recs = this.list();
+    var title = String(ex.title || '').trim() || '제목 없는 퀴즈';
+
+    $('hostTitle').textContent = title;
+    $('hostSub').textContent = ex.questions.length + '문항 · ' + total + '점 · ' +
+      (ex.timeLimitMin > 0 ? '제한시간 ' + ex.timeLimitMin + '분' : '제한시간 없음');
+    paintBrandTitle(title);
+    $('miniJoin').textContent = String(recs.length);
+    $('dashCount').textContent = String(recs.length);
+
+    var pill = $('statusPill');
+    if (pill && this._pillStatus !== ex.status) {
+      clearNode(pill);
+      pill.className = 'pill is-' + ex.status;
+      pill.appendChild(el('span', { cls: 'dotp' }));
+      pill.appendChild(document.createTextNode(STATUS_LABEL[ex.status] || ex.status));
+      this._pillStatus = ex.status;
+    }
+
+    var map = { manage: $('tabManage'), run: $('tabRun'), dash: $('tabDash') };
+    for (var k in map) {
+      if (hasOwn(map, k) && map[k]) {
+        map[k].className = 'tab' + (this.tab === k ? ' is-active' : '') +
+          (k === 'dash' && ex.status === 'running' ? ' is-live' : '');
+      }
+    }
+  },
+
+  renderPanel: function () {
+    $('panelManage').hidden = this.tab !== 'manage';
+    $('panelRun').hidden = this.tab !== 'run';
+    $('panelDash').hidden = this.tab !== 'dash';
+    if (this.tab === 'manage') { this.renderManage(); }
+    else if (this.tab === 'run') { this.renderRun(); }
+    else { this.renderDash(); }
+  },
+
+  renderLive: function () {
+    if (!Exam.data) { return; }
+    this.renderHeader();
+    if (this.tab === 'dash') {
+      var recs = this.list();
+      var sig = this.sigOf(recs);
+      if (sig !== this.dashSig) { this.renderDash(); }
+    } else if (this.tab === 'run') {
+      this.renderRunLive();
+    }
+  },
+
+  list: function () {
+    var out = [], k;
+    var src = this.recs || {};
+    var round = (Exam.data && Exam.data.round) || 1;
+    for (k in src) {
+      if (hasOwn(src, k) && src[k] && typeof src[k] === 'object' && src[k].id) {
+        /* 지난 라운드의 기록은 집계에서 제외한다 (초기화 직후의 늦은 쓰기 대비) */
+        if ((Number(src[k].round) || 1) !== round) { continue; }
+        out.push(src[k]);
+      }
+    }
+    out.sort(function (a, b) { return (a.joinedAt || 0) - (b.joinedAt || 0); });
+    return out;
+  },
+
+  /* ======================================================= 문제 관리 */
+  renderManage: function () {
+    var panel = $('panelManage');
+    clearNode(panel);
+    this.renderGuide(panel);
+    this.renderSettings(panel);
+    this.renderQuestions(panel);
+  },
+
+  renderGuide: function (panel) {
+    var self = this;
+    if (LS.get(KEYS.guide) === '1') { return; }
+    var steps = [
+      '문항·배점·제한시간을 확인하세요. 처음 열면 샘플 5문항이 DB에 저장되어 바로 시작할 수 있습니다.',
+      '"시험 진행"에서 [진행 중]을 누르면 팀원 화면에 문제가 실시간으로 열립니다.',
+      '팀원 초대 링크를 복사해 보내세요. 팀원은 각자 자기 기기에서 응시합니다.',
+      '"실시간 결과"에서 참여 현황·점수·문항별 정답률이 자동으로 모입니다.'
+    ];
+    var body = el('div', { cls: 'card-body' });
+    for (var i = 0; i < steps.length; i++) {
+      body.appendChild(el('div', { cls: 'guide-step' }, [
+        el('b', { text: String(i + 1) }),
+        el('span', { text: steps[i] })
+      ]));
+    }
+    panel.appendChild(el('div', { cls: 'card' }, [
+      el('div', { cls: 'card-head' }, [
+        el('h2', { text: '처음이라면 이 순서로' }),
+        btn('×', 'btn btn-ghost btn-sm', function () {
+          LS.set(KEYS.guide, '1');
+          self.renderManage();
+        }, { attrs: { 'aria-label': '안내 닫기' }, title: '다시 보지 않기' })
+      ]),
+      body
+    ]));
+  },
+
+  renderSettings: function (panel) {
+    var ex = Exam.data;
+    var self = this;
+    var saved = el('span', { cls: 'saveline', text: '저장됨' });
+    function flash() {
+      saved.className = 'saveline on';
+      setTimeout(function () { saved.className = 'saveline'; }, 1400);
+    }
+
+    var titleIn = el('input', {
+      cls: 'input', type: 'text', value: ex.title,
+      attrs: { maxlength: '60', 'aria-label': '시험 제목', placeholder: '예) 2026 익스퀴즈', 'data-role': 'exam-title' }
+    });
+    titleIn.addEventListener('input', debounce(function () {
+      var v = String(titleIn.value || '');
+      if (!v.trim()) { return; }
+      ex.title = v;
+      self.saveExam();
+      self.renderHeader();
+      flash();
+    }, 400));
+    titleIn.addEventListener('blur', function () {
+      if (!String(titleIn.value || '').trim()) {
+        ex.title = '제목 없는 퀴즈';
+        titleIn.value = ex.title;
+        self.saveExam();
+        self.renderHeader();
+        flash();
+      }
+    });
+
+    var timeIn = el('input', {
+      cls: 'input', type: 'number', value: String(ex.timeLimitMin || 0),
+      attrs: { min: '0', max: '300', inputmode: 'numeric', 'aria-label': '제한시간(분)', 'data-role': 'exam-time' }
+    });
+    timeIn.addEventListener('input', debounce(function () {
+      var v = parseInt(timeIn.value, 10);
+      if (isNaN(v) || v < 0) { v = 0; }
+      if (v > 300) { v = 300; }
+      ex.timeLimitMin = v;
+      self.saveExam();
+      self.renderHeader();
+      flash();
+    }, 350));
+
+    panel.appendChild(el('div', { cls: 'card' }, [
+      el('div', { cls: 'card-head' }, [el('h2', null, ['시험 설정', saved])]),
+      el('div', { cls: 'card-body' }, [
+        el('div', { cls: 'field' }, [el('span', { cls: 'label', text: '시험 제목' }), titleIn]),
+        el('div', { cls: 'grid-2', style: { marginTop: '12px' } }, [
+          el('div', { cls: 'field' }, [el('span', { cls: 'label', text: '제한시간 (분)' }), timeIn]),
+          el('div', { cls: 'field' }, [
+            el('span', { cls: 'label', text: '실시간 저장' }),
+            el('p', { cls: 'hintline', text: '변경 내용은 Firebase DB에 자동 저장되어 팀원 화면에 바로 반영됩니다.' })
+          ])
+        ]),
+        el('p', { cls: 'hintline', style: { marginTop: '10px' }, text: '제한시간 0분 = 무제한 · 제한시간이 끝나면 자동으로 종료되고 미제출자는 자동 제출됩니다.' })
+      ])
+    ]));
+  },
+
+  renderQuestions: function (panel) {
+    var self = this;
+    var qs = Exam.data.questions;
+    var total = Exam.totalPoints();
+
+    var head = el('div', { cls: 'card-head' }, [
+      el('h2', null, ['문항', el('span', { cls: 'hint', text: qs.length + '개 · 총 ' + total + '점' })]),
+      btn('+ 문항 추가', 'btn btn-soft btn-sm', function () { self.openEditor(null); })
+    ]);
+
+    var body;
+    if (!qs.length) {
+      body = el('div', { cls: 'empty' }, [
+        el('b', { text: '아직 문항이 없습니다.' }),
+        el('p', { text: '문항 추가를 눌러 5지선다·OX·단답형 문제를 만들어 주세요.' }),
+        el('div', { cls: 'empty-acts' }, [
+          btn('첫 문항 추가', 'btn btn-primary', function () { self.openEditor(null); })
+        ])
+      ]);
+    } else {
+      body = el('div', { cls: 'qlist' });
+      for (var i = 0; i < qs.length; i++) { body.appendChild(this.questionRow(qs[i], i)); }
+    }
+    panel.appendChild(el('div', { cls: 'card' }, [head, body]));
+  },
+
+  questionRow: function (q, i) {
+    var self = this;
+    var qs = Exam.data.questions;
+    var pts = Number(q.points) || 0;
+    return el('div', { cls: 'qitem' }, [
+      el('div', { cls: 'qnum', text: String(i + 1) }),
+      el('div', { cls: 'qmain' }, [
+        el('div', { cls: 'qtext', text: q.text }),
+        el('div', { cls: 'qmeta' }, [
+          el('span', { cls: 'tag ' + (TYPE_TAG[q.type] || ''), text: TYPE_LABEL[q.type] || q.type }),
+          el('span', { cls: 'tag tag-pts', text: pts + '점' }),
+          el('span', { cls: 'qans', text: '정답 ' + Model.correctText(q) })
+        ])
+      ]),
+      el('div', { cls: 'qacts' }, [
+        btn('↑', 'btn btn-sm btn-icon', function () { self.moveQuestion(i, -1); }, { title: '위로', attrs: { 'aria-label': (i + 1) + '번 문항 위로' }, disabled: i === 0 }),
+        btn('↓', 'btn btn-sm btn-icon', function () { self.moveQuestion(i, 1); }, { title: '아래로', attrs: { 'aria-label': (i + 1) + '번 문항 아래로' }, disabled: i === qs.length - 1 }),
+        btn('수정', 'btn btn-sm', function () { self.openEditor(q.id); }),
+        btn('삭제', 'btn btn-sm btn-danger', function () {
+          confirmAsk({
+            title: '문항을 삭제할까요?',
+            body: '삭제한 문항과 그 문항의 응답은 되돌릴 수 없습니다.',
+            danger: true,
+            okLabel: '삭제'
+          }, function () {
+            var idx = Exam.find(q.id);
+            if (idx >= 0) { Exam.data.questions.splice(idx, 1); self.saveExam(); }
+            self.render();
+            toast('문항을 삭제했습니다.', 'ok');
+          });
+        })
+      ])
+    ]);
+  },
+
+  moveQuestion: function (i, dir) {
+    var qs = Exam.data.questions;
+    var j = i + dir;
+    if (j < 0 || j >= qs.length) { return; }
+    var tmp = qs[i];
+    qs[i] = qs[j];
+    qs[j] = tmp;
+    this.saveExam();
+    this.renderManage();
+  },
+
+  openEditor: function (qid) {
+    var self = this;
+    var isNew = !qid;
+    var idx = isNew ? -1 : Exam.find(qid);
+    if (!isNew && idx < 0) { toast('문항을 찾을 수 없습니다.', 'err'); return; }
+
+    var draft;
+    if (isNew) {
+      draft = {
+        id: uid('q'), type: 'mcq', text: '', choices: ['', '', '', '', ''],
+        answer: 0, shortAnswers: [''], ignoreCase: true, ignoreSpace: true,
+        matchContains: false, points: 20, explain: ''
+      };
+    } else {
+      draft = clone(Exam.data.questions[idx]);
+      if (!draft.choices) { draft.choices = ['', '', '', '', '']; }
+      while (draft.choices.length < 5) { draft.choices.push(''); }
+      if (!draft.shortAnswers) { draft.shortAnswers = ['']; }
+      if (draft.type === 'mcq') { draft.answer = Number(draft.answer) || 0; }
+      if (draft.type === 'ox') { draft.answer = String(draft.answer || 'O').toUpperCase(); }
+    }
+
+    var body = el('div');
+    var err = el('span', { cls: 'errline' });
+    var pickRefs = [];
+    var oxRefs = [];
+
+    function paintPicks() {
+      for (var k = 0; k < pickRefs.length; k++) {
+        var on = Number(draft.answer) === pickRefs[k].i;
+        pickRefs[k].node.className = 'pick' + (on ? ' is-on' : '');
+        pickRefs[k].node.textContent = on ? '정답' : '선택';
+      }
+    }
+
+    function paintOx() {
+      for (var k = 0; k < oxRefs.length; k++) {
+        var on = String(draft.answer) === oxRefs[k].v;
+        oxRefs[k].node.className = 'oxpick-btn' + (on ? ' is-on' : '');
+      }
+    }
+
+    function section(label, kids) {
+      return el('div', { cls: 'editor-section' }, [el('span', { cls: 'editor-label', text: label })].concat(kids));
+    }
+
+    function switchRow(label, checked, onChange, role) {
+      var cb = el('input', { type: 'checkbox', attrs: { 'aria-label': label } });
+      cb.checked = !!checked;
+      if (role) { cb.setAttribute('data-role', role); }
+      cb.addEventListener('change', function () { onChange(cb.checked); });
+      return el('label', { cls: 'switch' }, [cb, label]);
+    }
+
+    function paint() {
+      clearNode(body);
+      pickRefs = [];
+      oxRefs = [];
+
+      var chips = el('div', { cls: 'typechips' });
+      var types = [['mcq', '5지선다'], ['ox', 'OX'], ['short', '단답형']];
+      for (var t = 0; t < types.length; t++) {
+        (function (key, label) {
+          chips.appendChild(btn(label, 'tchip' + (draft.type === key ? ' is-on' : ''), function () {
+            draft.type = key;
+            if (key === 'ox') { draft.answer = String(draft.answer || 'O').toUpperCase() === 'X' ? 'X' : 'O'; }
+            if (key === 'mcq') { draft.answer = Number(draft.answer) || 0; }
+            paint();
+          }, { attrs: { 'data-role': 'type-' + key } }));
+        })(types[t][0], types[t][1]);
+      }
+      body.appendChild(section('문항 유형', [chips]));
+
+      var ta = el('textarea', {
+        cls: 'textarea', value: draft.text,
+        attrs: { rows: '3', maxlength: '400', 'aria-label': '문제 내용', placeholder: '문제를 입력하세요', 'data-role': 'q-text' }
+      });
+      ta.addEventListener('input', function () { draft.text = ta.value; });
+      body.appendChild(section('문제', [ta]));
+
+      if (draft.type === 'mcq') {
+        var wrap = el('div');
+        for (var i = 0; i < 5; i++) {
+          (function (i) {
+            var input = el('input', {
+              cls: 'input', type: 'text', value: draft.choices[i] || '',
+              attrs: { maxlength: '120', placeholder: (i + 1) + '번 보기', 'aria-label': (i + 1) + '번 보기', 'data-role': 'choice-' + i }
+            });
+            input.addEventListener('input', function () { draft.choices[i] = input.value; });
+            var isOn = Number(draft.answer) === i;
+            var pick = btn(isOn ? '정답' : '선택', 'pick' + (isOn ? ' is-on' : ''), function () {
+              draft.answer = i;
+              paintPicks();
+            }, { attrs: { 'aria-label': (i + 1) + '번 보기를 정답으로', 'data-role': 'pick-' + i } });
+            pickRefs.push({ i: i, node: pick });
+            wrap.appendChild(el('div', { cls: 'choice-row' }, [
+              el('span', { cls: 'choice-key', text: CIRCLED[i] }), input, pick
+            ]));
+          })(i);
+        }
+        wrap.appendChild(el('p', { cls: 'hintline', text: '보기를 2개 이상 채워 주세요. 비어 있는 보기는 저장할 때 빠집니다.' }));
+        body.appendChild(section('보기와 정답', [wrap]));
+      } else if (draft.type === 'ox') {
+        var ox = el('div', { cls: 'oxpick' });
+        var opts = [['O', '맞다'], ['X', '아니다']];
+        for (var o = 0; o < opts.length; o++) {
+          (function (v, sub) {
+            var node = btn(v + '  ' + sub, 'oxpick-btn' + (String(draft.answer) === v ? ' is-on' : ''), function () {
+              draft.answer = v;
+              paintOx();
+            }, { attrs: { 'data-role': 'ox-' + v } });
+            ox.appendChild(node);
+            oxRefs.push({ v: v, node: node });
+          })(opts[o][0], opts[o][1]);
+        }
+        body.appendChild(section('정답', [ox]));
+      } else {
+        var shortIn = el('input', {
+          cls: 'input', type: 'text', value: (draft.shortAnswers || []).join(', '),
+          attrs: { maxlength: '200', placeholder: '예) 세종, 세종대왕', 'aria-label': '정답 (쉼표로 복수 정답)', 'data-role': 'short-answer' }
+        });
+        shortIn.addEventListener('input', function () {
+          draft.shortAnswers = String(shortIn.value || '').split(/[,，]/);
+        });
+        body.appendChild(section('정답 (쉼표로 복수 정답)', [
+          shortIn,
+          switchRow('대소문자 무시', draft.ignoreCase !== false, function (v) { draft.ignoreCase = v; }),
+          switchRow('띄어쓰기 무시', draft.ignoreSpace !== false, function (v) { draft.ignoreSpace = v; }),
+          switchRow("정답 단어가 포함되면 정답 처리 (예: '서울' → '서울시'도 정답)",
+            draft.matchContains === true, function (v) { draft.matchContains = v; }, 'match-contains'),
+          el('p', { cls: 'hintline', text: '예: "세종, 세종대왕"처럼 여러 정답을 허용합니다.' })
+        ]));
+      }
+
+      var ptsIn = el('input', {
+        cls: 'input', type: 'number', value: String(draft.points || 1),
+        attrs: { min: '1', max: '1000', inputmode: 'numeric', 'aria-label': '배점', 'data-role': 'q-points' }
+      });
+      ptsIn.addEventListener('input', function () { draft.points = ptsIn.value; });
+      var exIn = el('textarea', {
+        cls: 'textarea', value: draft.explain || '',
+        attrs: { rows: '2', maxlength: '400', 'aria-label': '해설', placeholder: '해설 (시험이 끝난 뒤 팀원에게 보입니다)', 'data-role': 'q-explain' }
+      });
+      exIn.addEventListener('input', function () { draft.explain = exIn.value; });
+      body.appendChild(section('배점과 해설', [
+        el('div', { cls: 'grid-2' }, [
+          el('div', { cls: 'field' }, [el('span', { cls: 'label', text: '배점' }), ptsIn]),
+          el('div', { cls: 'field' }, [el('span', { cls: 'label', text: '현재 합계' }), el('p', { cls: 'hintline', text: '저장 후 상단에 총점이 표시됩니다.' })])
+        ]),
+        el('div', { cls: 'field', style: { marginTop: '10px' } }, [el('span', { cls: 'label', text: '해설' }), exIn])
+      ]));
+    }
+
+    function saveDraft() {
+      var t = String(draft.text || '').trim();
+      if (!t) { err.textContent = '문제 내용을 입력해 주세요.'; return; }
+      if (draft.type === 'mcq') {
+        var kept = [], ansIdx = -1;
+        for (var i = 0; i < 5; i++) {
+          var c = String(draft.choices[i] || '').trim();
+          if (c) {
+            if (i === Number(draft.answer)) { ansIdx = kept.length; }
+            kept.push(c);
+          }
+        }
+        if (kept.length < 2) { err.textContent = '보기를 2개 이상 입력해 주세요.'; return; }
+        if (ansIdx < 0) { ansIdx = 0; }
+        draft.choices = kept;
+        draft.answer = ansIdx;
+        draft.shortAnswers = [];
+        draft.matchContains = false;
+      } else if (draft.type === 'ox') {
+        draft.answer = String(draft.answer || 'O').toUpperCase() === 'X' ? 'X' : 'O';
+        draft.choices = [];
+        draft.shortAnswers = [];
+        draft.matchContains = false;
+      } else {
+        var list = [];
+        for (var j = 0; j < (draft.shortAnswers || []).length; j++) {
+          var s = String(draft.shortAnswers[j] || '').trim();
+          if (s) { list.push(s); }
+        }
+        if (!list.length) { err.textContent = '정답을 1개 이상 입력해 주세요. (복수 정답은 쉼표로 구분)'; return; }
+        draft.shortAnswers = list;
+        draft.choices = [];
+        draft.ignoreCase = draft.ignoreCase !== false;
+        draft.ignoreSpace = draft.ignoreSpace !== false;
+        draft.matchContains = draft.matchContains === true;
+      }
+      var pts = parseInt(draft.points, 10);
+      if (isNaN(pts) || pts < 1) { pts = 1; }
+      if (pts > 1000) { pts = 1000; }
+      draft.points = pts;
+      draft.text = t;
+      draft.explain = String(draft.explain || '').trim();
+
+      if (isNew) { Exam.data.questions.push(draft); }
+      else { Exam.data.questions[idx] = draft; }
+      self.saveExam();
+      m.close();
+      self.render();
+      toast(isNew ? '문항을 추가했습니다.' : '문항을 수정했습니다.', 'ok');
+    }
+
+    paint();
+
+    var m = Modal.open({
+      title: isNew ? '문항 추가' : '문항 수정',
+      body: body,
+      wide: true,
+      foot: [
+        err,
+        btn('취소', 'btn', function () { m.close(); }),
+        btn(isNew ? '추가' : '저장', 'btn btn-primary', saveDraft)
+      ]
+    });
+    return m;
+  },
+
+  /* ======================================================= 시험 진행 */
+  renderRun: function () {
+    var self = this;
+    var panel = $('panelRun');
+    clearNode(panel);
+    var ex = Exam.data;
+    var recs = this.list();
+
+    var seg = el('div', { cls: 'seg' });
+    var states = [['waiting', '대기 중'], ['running', '진행 중'], ['ended', '종료']];
+    for (var i = 0; i < states.length; i++) {
+      (function (key, label) {
+        seg.appendChild(btn(label, 'btn' + (ex.status === key ? ' btn-primary' : ''), function () {
+          self.changeStatus(key);
+        }, { attrs: { 'data-role': 'status-' + key } }));
+      })(states[i][0], states[i][1]);
+    }
+    var desc;
+    if (ex.status === 'waiting') {
+      desc = '아직 시작하지 않았습니다. "진행 중"으로 바꾸면 팀원 화면에 문제가 열립니다.';
+    } else if (ex.status === 'running') {
+      desc = this.runDesc();
+    } else {
+      desc = '종료 ' + fmtHM(ex.endedAt) + ' · 팀원은 결과만 볼 수 있습니다.';
+    }
+    panel.appendChild(el('div', { cls: 'card' }, [
+      el('div', { cls: 'card-head' }, [
+        el('h2', { text: '시험 상태' }),
+        el('span', { cls: 'hint', text: '바꾸면 팀원 화면에 실시간으로 반영됩니다' })
+      ]),
+      el('div', { cls: 'card-body' }, [
+        el('div', { cls: 'status-line' }, [statusPill(ex.status), el('span', { cls: 'hint', id: 'runDesc', text: desc })]),
+        seg,
+        el('p', { cls: 'run-note', text: '종료하면 아직 제출하지 않은 팀원은 지금까지의 답안으로 자동 제출됩니다. 대기 중으로 되돌리면 참여자 응답이 함께 초기화됩니다.' })
+      ])
+    ]));
+
+    /* 실시간 제출 현황 */
+    panel.appendChild(this.submitCard());
+
+    /* 초대 링크 */
+    var url = this.inviteUrl();
+    var linkIn = el('input', {
+      cls: 'input', type: 'text', value: url,
+      placeholder: '팀원 파일(quiz-member.html) 주소를 붙여 넣으세요',
+      attrs: { 'aria-label': '팀원 초대 링크', 'data-role': 'invite-url', spellcheck: 'false' }
+    });
+    linkIn.addEventListener('input', function () { LS.set(KEYS.invite, String(linkIn.value || '').trim()); });
+    panel.appendChild(el('div', { cls: 'card' }, [
+      el('div', { cls: 'card-head' }, [el('h2', { text: '팀원 초대 링크' })]),
+      el('div', { cls: 'card-body' }, [
+        el('div', { cls: 'invite-box' }, [
+          linkIn,
+          btn('링크 복사', 'btn btn-soft', function () {
+            var v = String(linkIn.value || '').trim();
+            if (!v) { toast('먼저 팀원 파일(quiz-member.html) 주소를 입력해 주세요.', 'warn'); return; }
+            LS.set(KEYS.invite, v);
+            copyText(v, function (ok) {
+              if (ok) { toast('초대 링크를 복사했습니다.', 'ok'); }
+              else { toast('자동 복사가 막혀 있습니다. 링크를 길게 눌러 직접 복사해 주세요.', 'warn'); }
+            });
+          }, { attrs: { 'data-role': 'copy-invite' } })
+        ]),
+        el('div', { cls: 'row tight', style: { marginTop: '8px' } }, [
+          btn('현재 주소 기준으로 채우기', 'btn btn-sm', function () {
+            var href = String((window.location && window.location.href) || '').split('#')[0].split('?')[0];
+            if (href.indexOf('quiz-host') < 0) {
+              toast('이 화면 주소에서는 팀원 파일 주소를 만들 수 없습니다. 직접 입력해 주세요.', 'warn');
+              return;
+            }
+            var v = href.replace('quiz-host', 'quiz-member');
+            linkIn.value = v;
+            LS.set(KEYS.invite, v);
+            toast('팀원 파일 주소를 채웠습니다. 실제 배포 주소인지 확인해 주세요.', 'ok');
+          }, { attrs: { 'data-role': 'fill-invite' } })
+        ]),
+        el('p', { cls: 'run-note', text: '팀원에게는 이 주소(quiz-member.html)만 보내면 됩니다. 팀원 화면에는 출제 기능이 전혀 없고, 자기 결과만 보입니다.' }),
+        el('p', { cls: 'run-note', text: '처음 배포할 때는 quiz-host.html·quiz-member.html 두 파일을 같은 곳에 올리고, 이 칸에 팀원 파일 주소를 넣어 두면 다음에도 그대로 씁니다. (파일에 window.__MEMBER_URL__ 값을 넣어 두면 그 주소가 기본값이 됩니다.)' })
+      ])
+    ]));
+
+    /* 응답 초기화 */
+    panel.appendChild(el('div', { cls: 'card' }, [
+      el('div', { cls: 'card-head' }, [el('h2', { text: '응답 초기화' })]),
+      el('div', { cls: 'card-body' }, [
+        el('p', { cls: 'hintline', text: '참여자 기록과 응답을 DB에서 모두 지웁니다. 문항과 시험 설정은 그대로 남습니다.' }),
+        el('p', { cls: 'hintline', text: '현재 참여자 ' + recs.length + '명 · 제출 ' + this.countBy('submitted') + '명' }),
+        el('div', { cls: 'row', style: { marginTop: '12px' } }, [
+          btn('응답 초기화', 'btn btn-danger', function () {
+            confirmAsk({
+              title: '응답을 초기화할까요?',
+              body: '참여자 ' + recs.length + '명의 응답이 모두 지워집니다. 문항과 설정은 남습니다.',
+              danger: true,
+              okLabel: '초기화'
+            }, function () { self.resetResponses(); });
+          }, { attrs: { 'data-role': 'reset-responses' } })
+        ])
+      ])
+    ]));
+
+    /* 연동 정보 */
+    panel.appendChild(el('div', { cls: 'card' }, [
+      el('div', { cls: 'card-head' }, [el('h2', { text: '실시간 연동 상태' })]),
+      el('div', { cls: 'card-body' }, [
+        el('p', { cls: 'hintline', text: 'DB: ' + DB_BASE + '/quiz' }),
+        el('p', { cls: 'hintline', text: '출제자 화면은 참여자 목록을 실시간(SSE)으로 받고, 연결이 끊기면 2초마다 다시 확인합니다. 상단 배지에서 연결 상태를 볼 수 있습니다.' })
+      ])
+    ]));
+
+    this.subSig = '';
+    this.paintSubmit();
+  },
+
+  /* --------------------------------------------------- 실시간 제출 현황 */
+  goal: function () {
+    var v = parseInt(LS.get(KEYS.goal), 10);
+    if (isNaN(v) || v < 1) { return 0; }
+    return Math.min(999, v);
+  },
+
+  setGoal: function (raw) {
+    var v = parseInt(String(raw == null ? '' : raw).replace(/[^0-9]/g, ''), 10);
+    if (isNaN(v) || v < 1) { LS.del(KEYS.goal); }
+    else { LS.set(KEYS.goal, String(Math.min(999, v))); }
+    this.subSig = '';
+    this.paintSubmit();
+  },
+
+  submitStats: function () {
+    var recs = this.list();
+    var done = 0, live = 0, wait = 0, names = [];
+    for (var i = 0; i < recs.length; i++) {
+      var r = recs[i];
+      if (r.status === 'submitted') { done++; }
+      else if (r.status === 'answering') { live++; }
+      else { wait++; }
+      names.push((r.name || '이름 없음') + ':' + String(r.status));
+    }
+    var total = recs.length;
+    var goal = this.goal();
+    var running = Exam.status() === 'running';
+    /* 목표 인원을 정했으면 그만큼 모인 뒤 전원 제출, 아니면 지금 참여자 전원 제출이면 완료 */
+    var allDone = running && total >= 1 && done === total && (goal > 0 ? total >= goal : true);
+    var denom = goal > total ? goal : total;
+    return {
+      done: done, live: live, wait: wait, total: total, goal: goal, denom: denom,
+      pct: denom ? Math.round(done / denom * 100) : 0,
+      running: running, allDone: allDone, names: names.join(',')
+    };
+  },
+
+  submitCard: function () {
+    var self = this;
+    var goal = this.goal();
+    var goalIn = el('input', {
+      cls: 'input', type: 'number', value: goal ? String(goal) : '',
+      attrs: {
+        min: '1', max: '999', inputmode: 'numeric', placeholder: '예) 10',
+        'aria-label': '목표 응시 인원', 'data-role': 'goal-count'
+      }
+    });
+    goalIn.addEventListener('input', debounce(function () { self.setGoal(goalIn.value); }, 300));
+    goalIn.addEventListener('blur', function () { self.setGoal(goalIn.value); });
+
+    return el('div', { cls: 'card', id: 'submitCard' }, [
+      el('div', { cls: 'card-head' }, [
+        el('h2', null, ['제출 현황', el('span', { cls: 'hint', id: 'submitPct', text: '0%' })]),
+        el('span', { cls: 'hint', text: '실시간 자동 갱신' })
+      ]),
+      el('div', { cls: 'card-body' }, [
+        el('div', { cls: 'sub-status' }, [
+          el('span', { cls: 'sub-count', id: 'submitCount', text: '제출 완료 0 / 0명' }),
+          el('span', { cls: 'sub-goal', id: 'submitGoalText', text: '' })
+        ]),
+        el('div', { cls: 'sub-track' }, [
+          el('div', { cls: 'sub-fill', id: 'submitFill', style: { width: '0%' } })
+        ]),
+        el('div', { cls: 'sub-meta', id: 'submitMeta' }),
+        el('div', { cls: 'schips', id: 'submitChips' }),
+        el('div', { cls: 'goal-row' }, [
+          el('span', { text: '목표 응시 인원' }),
+          goalIn,
+          el('span', { text: '명' }),
+          el('span', { cls: 'hint', text: '비워 두면 현재 참여자 전원이 제출했을 때 완료로 봅니다.' })
+        ]),
+        el('div', { id: 'submitDone' })
+      ])
+    ]);
+  },
+
+  paintSubmit: function () {
+    if (!Exam.data) { return; }
+    if (!$('submitCard')) { return; }
+    var st = this.submitStats();
+    var sig = [Exam.status(), st.done, st.total, st.live, st.wait, st.goal, st.allDone, st.names].join('|');
+    if (sig === this.subSig) { return; }
+    this.subSig = sig;
+
+    var count = $('submitCount');
+    if (count) {
+      clearNode(count);
+      count.appendChild(document.createTextNode('제출 완료 '));
+      count.appendChild(el('b', { text: String(st.done) }));
+      count.appendChild(document.createTextNode(' / ' + st.total + '명'));
+    }
+
+    var goalText = $('submitGoalText');
+    if (goalText) {
+      if (st.goal > 0) {
+        goalText.textContent = '목표 ' + st.goal + '명 중 ' + st.done + '명 완료' +
+          (st.total < st.goal ? ' · 아직 ' + (st.goal - st.total) + '명 참여 전' : '');
+      } else {
+        goalText.textContent = '현재 참여자 ' + st.total + '명 기준';
+      }
+    }
+
+    var pct = $('submitPct');
+    if (pct) { pct.textContent = st.pct + '%'; }
+
+    var fill = $('submitFill');
+    if (fill) {
+      fill.style.width = st.pct + '%';
+      fill.className = 'sub-fill' + (st.total > 0 && st.done === st.total ? ' is-done' : '');
+    }
+
+    var meta = $('submitMeta');
+    if (meta) {
+      clearNode(meta);
+      meta.appendChild(el('span', { text: '응시 중 ' + st.live + '명' }));
+      meta.appendChild(el('span', { text: '대기 중 ' + st.wait + '명' }));
+      meta.appendChild(el('span', {
+        text: st.running ? '시험 진행 중' : '시험 ' + (STATUS_LABEL[Exam.status()] || Exam.status())
+      }));
+    }
+
+    var chips = $('submitChips');
+    if (chips) {
+      clearNode(chips);
+      var recs = this.list();
+      if (!recs.length) {
+        chips.appendChild(el('span', {
+          cls: 'schip-empty',
+          text: '아직 참여한 팀원이 없습니다. 초대 링크를 보내면 입장과 동시에 이 목록에 나타납니다.'
+        }));
+      }
+      for (var i = 0; i < recs.length; i++) {
+        var r = recs[i];
+        var cls = 'schip' + (r.status === 'submitted' ? ' is-done' : (r.status === 'answering' ? ' is-live' : ' is-wait'));
+        chips.appendChild(el('span', { cls: cls }, [
+          el('span', { cls: 'nm', text: r.name || '이름 없음' }),
+          statusChip(r)
+        ]));
+      }
+    }
+
+    var doneBox = $('submitDone');
+    if (doneBox) {
+      clearNode(doneBox);
+      if (st.allDone) {
+        var self = this;
+        doneBox.appendChild(el('div', { cls: 'all-done' }, [
+          el('div', null, [
+            el('b', { text: '참여자 전원 제출 완료!' }),
+            el('p', { cls: 'hintline', style: { marginTop: '3px' }, text: '이제 종료하면 팀원 화면에 정답과 해설이 바로 공개됩니다.' })
+          ]),
+          btn('시험 종료 및 정답 공개', 'btn btn-ok', function () { self.changeStatus('ended'); }, { attrs: { 'data-role': 'end-all' } })
+        ]));
+      }
+    }
+  },
+
+  inviteUrl: function () {
+    var saved = LS.get(KEYS.invite) || '';
+    if (saved) { return saved; }
+    return (typeof window.__MEMBER_URL__ === 'string') ? window.__MEMBER_URL__ : '';
+  },
+
+  countBy: function (status) {
+    var list = this.list(), n = 0;
+    for (var i = 0; i < list.length; i++) { if (list[i].status === status) { n++; } }
+    return n;
+  },
+
+  runDesc: function () {
+    var ex = Exam.data;
+    if (!ex || ex.status !== 'running') { return ''; }
+    var rem = Exam.remaining();
+    return '시작 ' + fmtHM(ex.startedAt) + ' · ' +
+      (rem === null || rem < 0 ? '제한시간 없음' : '남은 시간 ' + fmtClock(rem)) +
+      ' · 참여 ' + this.list().length + '명';
+  },
+
+  renderRunLive: function () {
+    var desc = $('runDesc');
+    if (desc) { desc.textContent = this.runDesc(); }
+    this.paintSubmit();
+  },
+
+  changeStatus: function (status) {
+    var self = this;
+    var ex = Exam.data;
+    if (!ex || ex.status === status) { return; }
+
+    if (status === 'waiting') {
+      confirmAsk({
+        title: '대기 중으로 되돌릴까요?',
+        body: '진행 중이던 응시가 중단되고 참여자 응답이 모두 지워집니다.',
+        danger: true,
+        okLabel: '되돌리기'
+      }, function () {
+        Exam.applyStatus('waiting');
+        self.saveExam();
+        self.resetResponses(true);
+        self.render();
+        toast('대기 중으로 되돌렸습니다. 참여자 기록을 초기화했습니다.', 'warn');
+      });
+      return;
+    }
+
+    if (status === 'running') {
+      var had = this.list().length;
+      var go = function () {
+        Exam.applyStatus('running');
+        self.autoEnded = false;
+        self.saveExam();
+        self.render();
+        toast('시험을 시작했습니다. 팀원 화면에 문제가 열립니다.', 'ok');
+      };
+      if (ex.status === 'ended' && had) {
+        confirmAsk({
+          title: '새 라운드를 시작할까요?',
+          body: '이전 응시 기록 ' + had + '건은 지워지고 처음부터 다시 시작합니다.',
+          okLabel: '새로 시작'
+        }, function () { self.resetResponses(true); go(); });
+        return;
+      }
+      go();
+      return;
+    }
+
+    confirmAsk({
+      title: '시험을 종료할까요?',
+      body: '아직 제출하지 않은 팀원은 지금까지의 답안으로 자동 제출됩니다.',
+      okLabel: '종료'
+    }, function () {
+      var n = self.finalize();
+      Exam.applyStatus('ended');
+      self.saveExam();
+      self.render();
+      toast(n ? n + '명을 자동 제출하고 시험을 종료했습니다.' : '시험을 종료했습니다.', 'ok');
+    });
+  },
+
+  finalize: function () {
+    var list = this.list(), n = 0;
+    for (var i = 0; i < list.length; i++) {
+      var r = list[i];
+      if (r.status === 'submitted') { continue; }
+      var g = Model.grade(Exam.data, r);
+      var patch = {
+        status: 'submitted', submittedAt: now(), auto: true,
+        score: g.score, maxScore: g.maxScore, correctCount: g.correctCount, durationSec: g.durationSec
+      };
+      FB.patch(DB_PATH.participant(r.id), patch);
+      r.status = 'submitted';
+      r.submittedAt = patch.submittedAt;
+      r.auto = true;
+      r.score = g.score;
+      r.maxScore = g.maxScore;
+      r.correctCount = g.correctCount;
+      r.durationSec = g.durationSec;
+      n++;
+    }
+    return n;
+  },
+
+  resetResponses: function (silent) {
+    var self = this;
+    if (Exam.data) {
+      Exam.data.round = (Number(Exam.data.round) || 1) + 1;
+      Exam.data.updatedAt = now();
+    }
+    /* 라운드를 먼저 알려야 응시 중인 팀원이 옛 기록을 다시 쓰지 않는다. */
+    if (this.saveTimer) { clearTimeout(this.saveTimer); this.saveTimer = null; }
+    if (Exam.data) {
+      FB.put(DB_PATH.exam, Exam.data, function () { /* 결과는 아래 DELETE가 정리한다 */ });
+      this.pendingSave = false;
+    }
+    FB.del(DB_PATH.participants, function (err) {
+      if (err) { toast('초기화하지 못했습니다. 연결 상태를 확인해 주세요.', 'err'); return; }
+      self.recs = {};
+      self.dashSig = '';
+      if (!silent) {
+        self.render();
+        toast('참여자 기록을 초기화했습니다.', 'ok');
+      }
+    });
+  },
+
+  /* =================================================== 실시간 결과 */
+  sigOf: function (recs) {
+    var ex = Exam.data || {};
+    var parts = [ex.status, (ex.questions || []).length, String(ex.title), String(ex.updatedAt)];
+    var answering = false;
+    for (var i = 0; i < recs.length; i++) {
+      var r = recs[i], n = 0;
+      var ans = r.answers || {};
+      for (var k in ans) { if (hasOwn(ans, k)) { n++; } }
+      if (r.status === 'answering') { answering = true; }
+      parts.push(r.id + ':' + r.status + ':' + n + ':' + (r.submittedAt || 0) + ':' + (r.name || ''));
+    }
+    if (answering) { parts.push('t' + Math.floor(now() / 5000)); }
+    return parts.join('|');
+  },
+
+  renderDash: function () {
+    var panel = $('panelDash');
+    if (!panel) { return; }
+    clearNode(panel);
+    var exx = Exam.data;
+    var recs = this.list();
+    var st = this.stats(exx, recs);
+    this.dashSig = this.sigOf(recs);
+
+    panel.appendChild(this.dashTools(recs, st));
+    panel.appendChild(this.kpiGrid(st));
+    panel.appendChild(this.participantsCard(exx, recs));
+    panel.appendChild(this.questionCard(st, recs.length));
+  },
+
+  stats: function (exam, recs) {
+    var total = recs.length, answering = 0, submitted = 0, waiting = 0;
+    var sum = 0, best = null, bestRec = null;
+    for (var i = 0; i < recs.length; i++) {
+      var r = recs[i];
+      if (r.status === 'submitted') { submitted++; }
+      else if (r.status === 'answering') { answering++; }
+      else { waiting++; }
+      if (r.status === 'submitted') {
+        var ev = Model.evaluate(exam, r);
+        sum += ev.earned;
+        if (best === null || ev.earned > best) { best = ev.earned; bestRec = r; }
+      }
+    }
+    var qs = (exam && exam.questions) || [], perQuestion = [];
+    for (var qi = 0; qi < qs.length; qi++) {
+      var q = qs[qi], ans = 0, cor = 0;
+      for (var ri = 0; ri < recs.length; ri++) {
+        var a = recs[ri].answers && recs[ri].answers[q.id];
+        var j = Model.judge(q, a ? a.raw : null);
+        if (j.answered) { ans++; if (j.correct) { cor++; } }
+      }
+      perQuestion.push({
+        q: q, index: qi, answered: ans, correct: cor,
+        rate: ans ? Math.round(cor / ans * 100) : 0
+      });
+    }
+    return {
+      total: total, answering: answering, submitted: submitted, waiting: waiting,
+      avg: submitted ? Math.round(sum / submitted) : null,
+      best: best, bestName: bestRec ? bestRec.name : '',
+      perQuestion: perQuestion,
+      maxPoints: Exam.totalPoints()
+    };
+  },
+
+  dashTools: function (recs, st) {
+    var self = this;
+    this.dashTimeEl = el('span', { cls: 'hint', text: '마지막 갱신 ' + fmtHMS(now()) });
+    var left = el('div', { cls: 'left' }, [
+      el('span', { cls: 'live-dot' }, [el('i'), '실시간']),
+      this.dashTimeEl
+    ]);
+    if (st) {
+      left.appendChild(el('span', { cls: 'hint', text: '제출 완료 ' + st.submitted + ' / ' + st.total + '명' }));
+    }
+    var acts = [];
+    if (Exam.data && Exam.data.status === 'running') {
+      if (st && st.total > 0 && st.submitted === st.total) {
+        acts.push(el('span', { cls: 'all-badge', text: '전원 제출 완료' }));
+      }
+      acts.push(btn('시험 종료 (정답 공개)', 'btn btn-ok btn-sm', function () { self.changeStatus('ended'); }, { attrs: { 'data-role': 'dash-end' } }));
+    }
+    acts.push(btn('CSV 내보내기', 'btn btn-soft btn-sm', function () { self.exportCsv(); }, { attrs: { 'data-role': 'csv' } }));
+    acts.push(btn('새로고침', 'btn btn-sm', function () { self.renderDash(); }));
+    return el('div', { cls: 'dash-tools' }, [left, el('div', { cls: 'left' }, acts)]);
+  },
+
+  kpiGrid: function (st) {
+    function card(label, value, unit, sub, accent) {
+      return el('div', { cls: 'kpi' + (accent ? ' is-accent' : '') }, [
+        el('div', { cls: 'kpi-label', text: label }),
+        el('div', { cls: 'kpi-value' }, [String(value), unit ? el('small', { text: unit }) : null]),
+        el('div', { cls: 'kpi-sub', text: sub || '' })
+      ]);
+    }
+    return el('div', { cls: 'kpis' }, [
+      card('참여자 수', st.total, '명', st.waiting ? '대기 ' + st.waiting + '명 포함' : '초대 링크로 입장', true),
+      card('응시 중', st.answering, '명', '지금 문제를 푸는 중'),
+      card('제출 완료', st.submitted, '명', st.total ? Math.round(st.submitted / st.total * 100) + '% 제출' : '아직 없음'),
+      card('평균 점수', st.avg === null ? '–' : st.avg, st.avg === null ? '' : '점', '제출자 기준'),
+      card('최고 점수', st.best === null ? '–' : st.best, st.best === null ? '' : '점',
+        st.best === null ? st.maxPoints + '점 만점' : (st.bestName + ' · ' + st.maxPoints + '점 만점'))
+    ]);
+  },
+
+  participantsCard: function (exx, recs) {
+    var self = this;
+    var head = el('div', { cls: 'card-head' }, [
+      el('h2', null, ['참여자', el('span', { cls: 'hint', text: recs.length ? recs.length + '명' : '' })]),
+      el('span', { cls: 'hint', text: '실시간 자동 갱신' })
+    ]);
+    if (!recs.length) {
+      return el('div', { cls: 'card' }, [head, el('div', { cls: 'empty' }, [
+        el('b', { text: '아직 참여한 팀원이 없습니다.' }),
+        el('p', { text: '팀원 초대 링크를 보내면 입장과 동시에 이 목록에 나타납니다.' }),
+        el('div', { cls: 'empty-acts' }, [
+          btn('시험 진행 탭으로', 'btn', function () { self.switchTab('run'); })
+        ])
+      ])]);
+    }
+
+    var table = el('div', { cls: 'ptable' }, [
+      el('div', { cls: 'phead' }, [
+        el('span', { text: '이름' }),
+        el('span', { text: '진행률' }),
+        el('span', { text: '상태' }),
+        el('span', { text: '점수' }),
+        el('span', { text: '정답률' }),
+        el('span', { text: '소요시간' }),
+        el('span', { text: '' })
+      ])
+    ]);
+    for (var i = 0; i < recs.length; i++) {
+      table.appendChild(this.participantRow(exx, recs[i]));
+    }
+    return el('div', { cls: 'card' }, [head, table]);
+  },
+
+  participantRow: function (exx, rec) {
+    var self = this;
+    var ev = Model.evaluate(exx, rec);
+    var prog = progressOf(exx, rec);
+    return el('div', { cls: 'prow' }, [
+      el('div', { cls: 'pcell pname' }, [el('span', { cls: 'nm', text: rec.name || '이름 없음' })]),
+      el('div', { cls: 'pcell' }, [
+        el('span', { cls: 'plabel', text: '진행률' }),
+        el('div', { cls: 'pbar-track' }, [el('div', { cls: 'pbar-fill', style: { width: prog + '%' } })]),
+        el('span', { cls: 'psub', text: ev.answered + '/' + ev.total + ' 문항' })
+      ]),
+      el('div', { cls: 'pcell' }, [el('span', { cls: 'plabel', text: '상태' }), statusChip(rec)]),
+      el('div', { cls: 'pcell' }, [
+        el('span', { cls: 'plabel', text: '점수' }),
+        el('span', { cls: 'pval big', text: rec.status === 'waiting' ? '–' : String(ev.earned) }),
+        el('span', { cls: 'pval unit', text: ' / ' + ev.max })
+      ]),
+      el('div', { cls: 'pcell' }, [
+        el('span', { cls: 'plabel', text: '정답률' }),
+        el('span', { cls: 'pval', text: ev.correctRate + '%' }),
+        el('span', { cls: 'psub', text: '정답 ' + ev.correct + '개' })
+      ]),
+      el('div', { cls: 'pcell' }, [
+        el('span', { cls: 'plabel', text: '소요시간' }),
+        el('span', { cls: 'pval', text: fmtDuration(ev.elapsed) }),
+        el('span', { cls: 'psub', text: rec.status === 'submitted' ? '제출 완료' : '진행 중' })
+      ]),
+      el('div', { cls: 'pcell pacts' }, [
+        btn('답안', 'btn btn-sm', function () { self.openDetail(rec.id); }, { attrs: { 'data-role': 'detail-' + rec.id } })
+      ])
+    ]);
+  },
+
+  questionCard: function (st, nRecs) {
+    var body = el('div', { cls: 'qbars' });
+    if (!st.perQuestion.length) {
+      body.appendChild(el('p', { cls: 'hintline', text: '문항이 없습니다.' }));
+    } else {
+      for (var i = 0; i < st.perQuestion.length; i++) {
+        var row = st.perQuestion[i];
+        var rate = row.rate;
+        var cls = 'qbar-fill' + (row.answered === 0 ? '' : (rate < 40 ? ' is-low' : (rate < 70 ? ' is-mid' : '')));
+        body.appendChild(el('div', { cls: 'qbar' }, [
+          el('div', { cls: 'qbar-top' }, [
+            el('span', { cls: 'qbar-idx', text: String(i + 1) }),
+            el('span', { cls: 'qbar-txt', text: row.q.text }),
+            el('span', { cls: 'qbar-pct', text: row.answered ? rate + '%' : '–' })
+          ]),
+          el('div', { cls: 'qbar-track' }, [el('div', { cls: cls, style: { width: (row.answered ? rate : 0) + '%' } })]),
+          el('div', { cls: 'qbar-sub', text: (TYPE_LABEL[row.q.type] || row.q.type) + ' · 정답 ' + row.correct + ' / 응답 ' + row.answered + ' · ' + (Number(row.q.points) || 0) + '점' })
+        ]));
+      }
+    }
+    return el('div', { cls: 'card' }, [
+      el('div', { cls: 'card-head' }, [
+        el('h2', { text: '문항별 정답률' }),
+        el('span', { cls: 'hint', text: '참여자 ' + (nRecs ? nRecs + '명' : '0명') + ' 기준' })
+      ]),
+      el('div', { cls: 'card-body' }, [body])
+    ]);
+  },
+
+  openDetail: function (pid) {
+    var rec = this.recs[pid];
+    if (!rec) { toast('참여자 정보를 찾을 수 없습니다.', 'warn'); return; }
+    var exx = Exam.data;
+    var ev = Model.evaluate(exx, rec);
+    var body = el('div');
+
+    body.appendChild(el('div', { cls: 'res-chips' }, [
+      el('span', { cls: 'res-chip' }, ['점수 ', el('b', { text: String(ev.earned) }), ' / ' + ev.max]),
+      el('span', { cls: 'res-chip' }, ['정답 ', el('b', { text: String(ev.correct) })]),
+      el('span', { cls: 'res-chip' }, ['오답 ', el('b', { text: String(ev.wrong) })]),
+      el('span', { cls: 'res-chip' }, ['미응답 ', el('b', { text: String(ev.missing) })]),
+      el('span', { cls: 'res-chip' }, ['소요 ', el('b', { text: fmtDuration(ev.elapsed) })])
+    ]));
+    if (rec.status !== 'submitted') {
+      body.appendChild(el('p', { cls: 'hintline', style: { marginTop: '10px' }, text: '아직 제출하지 않았습니다. 지금까지의 답안입니다.' }));
+    } else if (rec.auto) {
+      body.appendChild(el('p', { cls: 'hintline', style: { marginTop: '10px' }, text: '시험 종료 또는 시간 만료로 자동 제출되었습니다.' }));
+    }
+
+    var list = el('div', { style: { marginTop: '14px', border: '1px solid #eef1f7', borderRadius: '12px', overflow: 'hidden' } });
+    for (var i = 0; i < ev.items.length; i++) {
+      var it = ev.items[i];
+      var q = it.q;
+      var cls = it.correct ? 'rev rev-ok' : (it.answered ? 'rev rev-no' : 'rev rev-miss');
+      var mark = it.correct ? '✓' : (it.answered ? '✕' : '–');
+      var kids = [
+        el('div', { cls: 'rev-head' }, [
+          el('span', { cls: 'rev-mark', text: mark }),
+          el('div', { cls: 'rev-q', text: (i + 1) + '. ' + q.text }),
+          el('span', { cls: 'rev-pts', text: it.earned + '/' + it.points })
+        ]),
+        el('div', { cls: 'kv' }, [
+          el('div', null, [el('span', { cls: 'k', text: '팀원 답' }), el('span', { cls: it.correct ? 'right' : (it.answered ? 'wrong' : 'mine'), text: it.answered ? Model.answerText(q, it.raw) : '미응답' })]),
+          el('div', null, [el('span', { cls: 'k', text: '정답' }), el('span', { cls: 'right', text: Model.correctText(q) })])
+        ])
+      ];
+      if (q.explain) { kids.push(el('div', { cls: 'explain', text: q.explain })); }
+      list.appendChild(el('div', { cls: cls }, kids));
+    }
+    body.appendChild(list);
+
+    Modal.open({
+      title: (rec.name || '이름 없음') + ' 답안',
+      body: body,
+      wide: true,
+      foot: [
+        el('span', { cls: 'hint', text: Model.statusText(rec) + (rec.submittedAt ? ' · ' + fmtHMS(rec.submittedAt) : '') }),
+        btn('닫기', 'btn', function () { Modal.close(); })
+      ]
+    });
+  },
+
+  exportCsv: function () {
+    var recs = this.list();
+    if (!recs.length) { toast('내보낼 결과가 없습니다.', 'warn'); return; }
+    var name = csvFileName();
+    if (downloadText(name, csvText(Exam.data, recs), 'text/csv;charset=utf-8')) {
+      toast('CSV 파일(' + name + ') 다운로드를 시작했습니다.', 'ok');
+    } else {
+      toast('다운로드를 시작하지 못했습니다. 브라우저 설정을 확인해 주세요.', 'err');
+    }
+  }
+};
+
+/* 출제자 화면 시작 */
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', function () { Host.init(); });
+} else {
+  Host.init();
+}
+
+/* 검증·디버깅용 핸들: ?dev=1 또는 테스트 플래그가 있을 때만 노출한다. */
+if (window.__TQ_TEST === true || getParam('dev') === '1') {
+  window.__TQ = { Host: Host, Exam: Exam, Model: Model, FB: FB, LS: LS, KEYS: KEYS, toast: toast, Modal: Modal };
+}
+</script>
+</body>
+</html>
