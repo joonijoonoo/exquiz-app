@@ -728,6 +728,7 @@ var KEYS = {
   name: 'quiz:myName',
   invite: 'quiz:inviteUrl',
   room: 'quiz:roomCode',
+  prevRoom: 'quiz:prevRoom',
   memberRoom: 'quiz:memberRoom',
   tab: 'quiz:hostTab',
   guide: 'quiz:guideOff',
@@ -1601,6 +1602,7 @@ function csvFileName() {
 var Host = {
   tab: 'manage',
   roomCode: '',
+  prevRoom: '',
   roomErr: '',
   roomInput: '',
   recs: {},
@@ -1626,6 +1628,8 @@ var Host = {
     var saved = LS.get(KEYS.tab);
     if (saved === 'manage' || saved === 'run' || saved === 'dash') { this.tab = saved; }
     this.roomCode = this.loadRoomCode();
+    var prev = RoomCode.normalize(LS.get(KEYS.prevRoom) || '');
+    this.prevRoom = (RoomCode.valid(prev) && prev !== this.roomCode) ? prev : '';
     this.loadExam();
     setInterval(function () { self.tick(); }, 1000);
     document.addEventListener('keydown', function (ev) {
@@ -1784,12 +1788,35 @@ var Host = {
         toast('초대 코드를 바꾸지 못했습니다.', 'err');
         return;
       }
+      self.prevRoom = prev;
+      LS.set(KEYS.prevRoom, prev);
       self.subscribeRoom();
       self.render();
       toast('초대 코드를 ' + code + '(으)로 바꿨습니다. 새 초대 링크를 보내 주세요.', 'ok');
     };
     if (exam) { FB.put(DB_PATH.exam(code), exam, done); }
     else { done(null); }
+  },
+
+  /* 코드를 바꾸기 전의 방을 닫아 이전 코드로는 못 들어오게 한다. */
+  closePrevRoom: function () {
+    var self = this;
+    var code = this.prevRoom;
+    if (!code || code === this.roomCode) { return; }
+    confirmAsk({
+      title: '이전 방을 닫을까요?',
+      body: '코드 ' + code + '의 방과 그 방의 응시 기록이 지워집니다. 되돌릴 수 없습니다.',
+      danger: true,
+      okLabel: '닫기'
+    }, function () {
+      FB.del(DB_PATH.room(code), function (err) {
+        if (err) { toast('이전 방을 닫지 못했습니다. 연결 상태를 확인해 주세요.', 'err'); return; }
+        self.prevRoom = '';
+        LS.del(KEYS.prevRoom);
+        self.render();
+        toast('이전 방을 닫았습니다. 이전 코드로는 입장할 수 없습니다.', 'ok');
+      });
+    });
   },
 
   /* -------------------------------------------------- 초대 코드 카드 */
@@ -1849,6 +1876,19 @@ var Host = {
         ])
       ])
     ]);
+    if (this.prevRoom && this.prevRoom !== this.roomCode) {
+      body.appendChild(el('div', { cls: 'field', style: { marginTop: '12px' } }, [
+        el('span', { cls: 'label', text: '이전 코드의 방 (남아 있음)' }),
+        el('div', { cls: 'invite-box' }, [
+          el('input', {
+            cls: 'input', type: 'text', value: this.prevRoom,
+            attrs: { readonly: 'readonly', 'aria-label': '이전 초대 코드', 'data-role': 'prev-room-code', spellcheck: 'false' }
+          }),
+          btn('이전 방 닫기', 'btn btn-danger', function () { self.closePrevRoom(); }, { attrs: { 'data-role': 'prev-room-close' } })
+        ])
+      ]));
+      body.appendChild(el('p', { cls: 'hintline', text: '코드를 바꾸기 전의 방은 그대로 남아 있어 이전 코드로도 들어갈 수 있습니다. 닫으면 그 방의 문항과 응시 기록이 지워지고 이전 코드는 더 이상 통하지 않습니다.' }));
+    }
     if (this.roomErr) {
       body.appendChild(el('p', { cls: 'errline', style: { marginTop: '10px' }, text: this.roomErr }));
     }
