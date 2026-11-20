@@ -875,7 +875,6 @@ function paintBrandTitle(title) {
    KaTeX는 CDN에서 늦게 도착할 수 있으므로, 아직 없거나 오프라인이면 원문 텍스트를 그대로 보여 준다. */
 var RichText = {
   cache: {},
-  nodes: [],
 
   available: function () {
     return !!(window.katex && typeof window.katex.renderToString === 'function');
@@ -942,7 +941,6 @@ var RichText = {
     /* KaTeX가 늦게 도착하면 다시 그릴 수 있게 원문을 기억해 둔다. */
     node.__richText = raw;
     node.__richInline = inline;
-    if (this.nodes.indexOf(node) < 0) { this.nodes.push(node); }
     clearNode(node);
     addClass(node, inline ? 'rt rt-inline' : 'rt');
     var segs = this.split(raw), hasMath = false;
@@ -970,18 +968,17 @@ var RichText = {
   },
 
   /* KaTeX가 뒤늦게 로드되면 지금까지 그린 수식을 다시 그린다. */
-  repaint: function () {
-    if (!this.available() || !this.nodes.length) { return 0; }
-    var live = [], done = 0;
-    for (var i = 0; i < this.nodes.length; i++) {
-      var n = this.nodes[i];
-      if (!n || !n.parentNode) { continue; }
-      live.push(n);
-      if (String(n.__richText || '').indexOf('$') < 0) { continue; }
+  repaint: function (root) {
+    if (!this.available()) { return 0; }
+    var host = root || document;
+    var list = host.querySelectorAll ? host.querySelectorAll('.rt') : [];
+    var done = 0;
+    for (var i = 0; i < list.length; i++) {
+      var n = list[i];
+      if (!n || !n.parentNode || String(n.__richText || '').indexOf('$') < 0) { continue; }
       this.render(n, n.__richText, { inline: n.__richInline });
       done++;
     }
-    this.nodes = live;
     return done;
   }
 };
